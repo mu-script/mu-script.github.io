@@ -1,0 +1,10 @@
+# Site settings
+title: Mu script
+description: Home of the Mu scripting language
+footnote: Hi! I'm glad you read this far.
+
+url: "http://mu-script.github.io"
+github: "https://github.com/mu-script"
+
+# Build settings
+markdown: kramdown

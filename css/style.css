@@ -1,0 +1,131 @@
+body {
+  font-family: "OpenSansRegular", Helvetica, Arial, sans-serif;
+  font-size: 14px/1.5;
+  background: #eeeeee;
+  max-width: 750px;
+  margin: 0 auto;
+  position: relative;
+}
+
+strong {
+  font-family: 'OpenSansBold', Helvetica, Arial, sans-serif;
+  font-weight: normal;
+}
+
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: normal;
+  line-height: 1.1;
+  margin: 0 6px 10px;
+}
+
+h1 { font-size: 28px; }
+h2 { font-size: 24px; }
+h3 { font-size: 18px; }
+h4, h5, h6 {}
+
+p, ul, ol, table, pre, dl {
+  margin: 0 6px 20px;
+}
+
+a {
+  color: #007edf;
+  font-weight: 400;
+  text-decoration: none;
+}
+
+a:hover, a:focus {
+  text-decoration: underline;
+}
+
+ul {
+  color: #111111;
+  list-style: square;
+}
+
+
+hr {
+  background: #111111;
+  height: 3px;
+  border: 0;
+  margin: 0 0 50px;
+}
+
+blockquote {
+  color: #111111;
+  border-left: 3px solid;
+  font-style: italic;
+  padding: 0 0 0 20px;
+}
+
+
+code {
+  margin: 0;
+  padding: 0;
+  font-family: "Lucida Sans", Lucida Console, Terminal;
+  font-size: 13px;
+  color: #eeeeee;
+  text-shadow: 0 1px 0 #000;
+  border-radius: 2px;
+}
+
+pre {
+  background: #333333;
+  border: 1px solid #111111;
+  border-radius: 2px;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
+  overflow: auto;
+  overflow-y: hidden;
+  padding: 8px 15px;
+}
+
+
+#header {
+  padding: 30px 0 50px 0;
+  height: 64px;
+}
+
+#header .header.blob {
+  float: left;
+  height: 64px;
+  margin: 0 4px;
+  /* TODO use svg */
+  image-rendering: pixelated;
+}
+
+#header .header.left {
+  float: left;
+  margin: 0;
+}
+
+#header .header.right {
+  float: right;
+  margin: 0 6px;
+}
+
+#header hr {
+  clear: both;
+}
+
+
+#footer {
+  height: 32px;
+  padding: 30px 0 50px;
+}
+
+#footer .footer.blob {
+  color: #333333;
+  float: right;
+  margin: 0 6px;
+}
+
+#footer hr {
+  margin: 0;
+}
+
+
+@media print, screen and (max-width: 750px) {
+  #header p {
+    display: none;
+  }
+}
