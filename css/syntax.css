@@ -1,0 +1,8 @@
+/* Style for syntax highlighting */
+
+.code.comment { color: #8397ab }
+.code.literal { color: #cc9393 }
+.code.define  { color: #cae682 }
+.code.control { color: #efefaf }
+.code.type    { color: #8dcbe2 }
+.code.special { color: #bcadad }

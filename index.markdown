@@ -72,8 +72,8 @@ type vec()
     fn create(self, x, y)
         self[0], self[1] = x, y
 
-    fn `+`([ax,ay],[bx,by]) -> vec(ax+bx, ay+by)
-    fn `-`([ax,ay],[bx,by]) -> vec(ax-bx, ay-by)
+    fn +([ax,ay],[bx,by]) -> vec(ax+bx, ay+by)
+    fn -([ax,ay],[bx,by]) -> vec(ax-bx, ay-by)
 
     fn len(self) -> self->lensq()
     fn lensq([x,y]) -> (x^2 + y^2)^0.5
