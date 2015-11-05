@@ -13,7 +13,7 @@ In the meantime, feel free to look into the current
 
 Example
 -------
-In the meantime, here's some quick examples of what Mu should look like:
+Here's some quick examples of what Mu should look like:
 
 ~~~ mu
 # Yes yes, a hello world program
