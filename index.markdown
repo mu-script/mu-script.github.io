@@ -24,6 +24,10 @@ print('Hello World!')
 # Naive factorial function
 fn fac(n) -> if (n == 0) 1 else n*fac(n-1)
 
+fn fac(n)
+    if (n == 0) -> 1
+    else        -> n*fac(n-1)
+
 # results in +inf
 # not really sure what I was expecting
 print(fac(100))
@@ -75,8 +79,7 @@ type vec()
     fn +([ax,ay],[bx,by]) -> vec(ax+bx, ay+by)
     fn -([ax,ay],[bx,by]) -> vec(ax-bx, ay-by)
 
-    fn len(self) -> self->lensq()
-    fn lensq([x,y]) -> (x^2 + y^2)^0.5
+    fn len([x,y]) -> (x^2 + y^2)^0.5
 
 let a = vec(1, 0)
 let b = vec(0, 1)
