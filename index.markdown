@@ -15,12 +15,12 @@ Example
 -------
 Here's some quick examples of what Mu should look like:
 
-~~~ mu
+``` mu
 # Yes yes, a hello world program
 print('Hello World!')
-~~~
+```
 
-~~~ mu
+``` mu
 # Naive factorial function
 fn fac(n) -> if (n == 0) 1 else n*fac(n-1)
 
@@ -31,9 +31,9 @@ fn fac(n)
 # results in +inf
 # not really sure what I was expecting
 print(fac(100))
-~~~
+```
 
-~~~ mu
+``` mu
 # Simple quicksort implementation
 fn qsort(data)
     let x, data = data[0], sub(data, 1, inf)
@@ -45,9 +45,9 @@ fn qsort(data)
 data = [1,5,2,8,6,4,4,5,2,9]
 print('[', join(map(repr, qsort(data)), ', '), ']')
 print('[', join(map(repr, sort(data)),  ', '), ']')
-~~~
+```
 
-~~~ mu
+``` mu
 # Solution to Project Euler problem #4
 # Simply brute forces the answer
 
@@ -68,20 +68,4 @@ for (p, [x, y] = sort(pairs(palins)))
     print(pad(repr(x), 8), '*',
           pad(repr(y), 8), ' = ',
           pad(repr(p), 8))
-~~~
-
-~~~ mu
-# Simple vector implementation
-type vec()
-    fn create(self, x, y)
-        self[0], self[1] = x, y
-
-    fn +([ax,ay],[bx,by]) -> vec(ax+bx, ay+by)
-    fn -([ax,ay],[bx,by]) -> vec(ax-bx, ay-by)
-
-    fn len([x,y]) -> (x^2 + y^2)^0.5
-
-let a = vec(1, 0)
-let b = vec(0, 1)
-print('dist: ', (b-a)->len())
-~~~
+```

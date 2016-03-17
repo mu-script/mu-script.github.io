@@ -1,6 +1,7 @@
 @import url(https://fonts.googleapis.com/css?family=Open+Sans);
 @import url(https://fonts.googleapis.com/css?family=Inconsolata);
 
+
 body {
   font-family: "Open Sans", Arial, sans-serif;
   font-size: 15px;
@@ -13,16 +14,22 @@ body {
 h1, h2, h3, h4, h5, h6 {
   font-weight: normal;
   line-height: 1.1;
-  margin: 0 6px 10px;
+  margin: 30px 6px 15px;
 }
 
 h1 { font-size: 28px; }
 h2 { font-size: 24px; }
-h3 { font-size: 18px; }
-h4, h5, h6 {}
+h3 { font-size: 20px; }
 
-p, ul, ol, table, pre, dl {
-  margin: 0 6px 20px;
+hr {
+  background: black;
+  height: 2px;
+  border: 0;
+  margin: 0 0 30px;
+}
+
+p, ul, ol, table, pre, dl, blockquote {
+  margin: 0 6px 15px;
 }
 
 a {
@@ -36,50 +43,92 @@ a:hover, a:focus {
 }
 
 ul {
-  color: #111111;
+  color: black;
   list-style: square;
 }
 
-
-hr {
-  background: #111111;
-  height: 3px;
-  border: 0;
-  margin: 0 0 30px;
-}
-
 blockquote {
-  color: #111111;
-  border-left: 3px solid;
+  color: black;
+  border-left: 2px solid;
   font-style: italic;
-  padding: 0 0 0 20px;
+  padding: 0 0 0 6px;
 }
 
 
-code {
-  margin: 0;
-  padding: 0;
-  font-family: "Inconsolata", Monaco, monospace;
-  font-size: 15px;
-  color: #eeeeee;
-  text-shadow: 0 1px 0 #000;
-  border-radius: 2px;
-}
-
-pre {
+thead, dt, pre {
   background: #333333;
-  border: 1px solid #111111;
   border-radius: 2px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.3);
   overflow: auto;
   overflow-y: hidden;
-  padding: 8px 15px;
+  padding: 8px 12px;
+}
+
+table, dl {
+  background: #dddddd;
+  border-radius: 2px;
+  overflow-y: hidden;
+}
+
+th, dt, pre {
+  color: #eeeeee;
+  text-shadow: 0 1px 0 #000;
+  font-weight: normal;
+  font-size: 15px;
+}
+
+th a, dt a, pre a {
+  color: inherit;
+  font-weight: normal;
+  text-decoration: none;
+}
+
+code, dt {
+  font-family: "Inconsolata", Monaco, monospace;
+  font-size: 15px;
+}
+
+dd {
+  padding: 8px 0 0;
+  margin: 0 6px;
+}
+
+table {
+  table-layout: fixed;
+  width: 738px;
+}
+
+th {
+  text-align: left;
+  padding: 8px 12px;
+}
+
+td {
+  text-align: left;
+  padding: 0px 12px;
+}
+
+th:nth-child(1) {
+  border-radius: 2px 0 0 2px;
+}
+
+th:nth-last-child(1) {
+  border-radius: 0 2px 2px 0;
+}
+
+tbody:after {
+  content: '';
+  display: block;
+  height: 8px;
 }
 
 
 #header {
-  padding: 30px 0 30px 0;
+  padding: 30px 0 0;
   height: 64px;
+}
+
+#header h1 {
+  margin: 0 0 8px;
 }
 
 #header .header.blob {
