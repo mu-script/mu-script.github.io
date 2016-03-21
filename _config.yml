@@ -4,7 +4,7 @@ description: Home of the Mu scripting language
 footnote: Hi! I'm glad you read this far.
 
 url: "http://mu-script.org"
-github: "https://github.com/mu-script"
+github: "https://github.com/mu-script/mu"
 
 # Build settings
 markdown: kramdown

@@ -5,11 +5,11 @@ var language = 'mu'
 var syntax = [
     ['comment', /#.*$/],
 
-    ['define',  /\b(let|fn|type)\b/                 ],
-    ['control', /\b(if|else|while|for|and|or|in)\b/ ],
-    ['control', /\b(break|continue|return)\b/       ],
-    ['type',    /\b(num|str|tbl|fn_)\b/             ],
-    ['literal', /\b(nil|inf|e|pi|true|false)\b/     ],
+    ['define',  /\b(let|fn|type)\b/               ],
+    ['control', /\b(if|else|while|for|and|or)\b/  ],
+    ['control', /\b(break|continue|return)\b/     ],
+    ['type',    /\b(num|str|tbl|fn_)\b/           ],
+    ['literal', /\b(nil|_|inf|e|pi|true|false)\b/ ],
 
     ['literal', /'(\\'|[^'])*'|"(\\"|[^"])*"/,
         ['special', /\\[\\'"fnrtv0]/     ],
@@ -18,10 +18,10 @@ var syntax = [
         ['special', /\\d[0-9]{3}/        ],
         ['special', /\\x[0-9a-fA-F]{2}/  ]],
 
-    ['literal', /\b[0-9]+(\.[0-9]+)?([eEpP][+-]?[0-9]+)?\b/             ],
-    ['literal', /\b0[bB][01]+(\.[01]+)?([eEpP][+-]?[0-9]+)?\b/          ],
-    ['literal', /\b0[oO][0-7]+(\.[0-7]+)?([eEpP][+-]?[0-9]+)?\b/        ],
-    ['literal', /\b0[0-9a-fA-F]+(\.[0-9a-fA-F]+)?([eEpP][+-]?[0-9]+)?\b/],
+    ['literal', /\b[0-9]+(\.[0-9]+)?([eEpP][+-]?[0-9]+)?\b/                 ],
+    ['literal', /\b0[bB][01]+(\.[01]+)?([eEpP][+-]?[0-9]+)?\b/              ],
+    ['literal', /\b0[oO][0-7]+(\.[0-7]+)?([eEpP][+-]?[0-9]+)?\b/            ],
+    ['literal', /\b0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([eEpP][+-]?[0-9]+)?\b/],
 ]
 
 function syntax_precompile(syntax, offset) {
