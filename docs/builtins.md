@@ -339,17 +339,17 @@ Depth indicates how many nested tables to represent, by default depth is `1`.
 Returns the string representation of x in the specific base.
 </dd>
 
-<dt id="find" markdown="span">[find](#find)(x, str) -> lower, upper</dt>
+<dt id="find" markdown="span">[find](#find)(x, match) -> lower, upper</dt>
 <dd markdown="block">
-Finds the first occurance of x.
+Finds the first occurance of match in x.
 
-If x is not found, nil is returned.  
-Otherwise, the lower and upper bounds of x are returned.
+If match is not found, nil is returned.  
+Otherwise, the lower and upper bounds of match are returned.
 </dd>
 
-<dt id="replace" markdown="span">[replace](#replace)(x, y, str) -> str</dt>
+<dt id="replace" markdown="span">[replace](#replace)(x, m, r) -> str</dt>
 <dd markdown="block">
-Replaces each occurance of x with y.
+Replaces each occurance of m with r in x.
 </dd>
 
 <dt id="split" markdown="span">[split](#split)(x[, delim]) -> iter</dt>
