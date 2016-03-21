@@ -5,11 +5,10 @@ var language = 'mu'
 var syntax = [
     ['comment', /#.*$/],
 
-    ['define',  /\b(let|fn|type)\b/               ],
-    ['control', /\b(if|else|while|for|and|or)\b/  ],
-    ['control', /\b(break|continue|return)\b/     ],
-    ['type',    /\b(num|str|tbl|fn_)\b/           ],
-    ['literal', /\b(nil|_|inf|e|pi|true|false)\b/ ],
+    ['define',  /\b(let|fn)\b/                  ],
+    ['control', /\b(if|else|while|for|and|or)\b/],
+    ['control', /\b(break|continue|return)\b/   ],
+    ['literal', /\b(nil|_|inf|true|false)\b/    ],
 
     ['literal', /'(\\'|[^'])*'|"(\\"|[^"])*"/,
         ['special', /\\[\\'"fnrtv0]/     ],
