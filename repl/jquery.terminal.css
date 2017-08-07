@@ -90,14 +90,14 @@
             animation: terminal-blink 1s infinite steps(1, start);
     border-left: 1px solid transparent;
     margin-left: -1px;
-    margin-top: 1px;
+    /*margin-top: 1px;*/
 }
 .bar.terminal .inverted, .bar.cmd .inverted {
     border-left-color: #eeeeee;
 }
 .terminal .terminal-output div div, .cmd .prompt {
     display: block;
-    line-height: 14px;
+    /*line-height: 14px;*/
     height: auto;
 }
 .cmd .prompt > span {
@@ -416,7 +416,7 @@
                 animation: var(--animation, terminal-blink) 1s infinite steps(1, start);
         color: var(--color, #eeeeee);
         background-color: var(--background, #333333);
-        margin-top: calc(var(--size) * 1px);
+        /*margin-top: calc(var(--size) * 1px);*/
     }
     .terminal h1::-moz-selection,
     .terminal h2::-moz-selection,

@@ -1,7 +1,9 @@
 function repl() {
-    $('#repl').terminal(function(command) {
+    var mu_repl = Module.cwrap('mu_repl', 'string', ['string'])
+
+    var term = $('#repl').terminal(function(command) {
         if (command !== '') {
-            var result = window.eval(command);
+            var result = mu_repl(command);
             if (result != undefined) {
                 this.echo(String(result));
             }
@@ -12,6 +14,9 @@ function repl() {
         height: 400,
         prompt: '> ',
     });
+
+    Module.print = term.echo
+    Module.printErr = term.error
 }
 
 (function(hook) {

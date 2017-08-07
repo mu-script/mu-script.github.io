@@ -5,6 +5,7 @@ css:
 js:
 - https://ajax.googleapis.com/ajax/libs/jquery/1.7.1/jquery.min.js
 - jquery.terminal.min.js
+- mu.js
 - repl.js
 ---
 
