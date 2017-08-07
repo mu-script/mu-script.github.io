@@ -11,7 +11,17 @@
     <link rel="stylesheet" href="/css/style.css">
 
     <script src="/js/syntax.js"></script>
+    {% if page.js %}
+    {% for file in page.js %}
+    <script src="{{file}}"></script>
+    {% endfor %}
+    {% endif %}
     <link rel="stylesheet" href="/css/syntax.css">
+    {% if page.css %}
+    {% for file in page.css %}
+    <link rel="stylesheet" href="{{file}}">
+    {% endfor %}
+    {% endif %}
     {% include analytics.html %}
   </head>
   <body>

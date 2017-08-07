@@ -8,3 +8,6 @@ github: "https://github.com/mu-script/mu"
 
 # Build settings
 markdown: kramdown
+kramdown:
+    input: GFM
+    hard_wrap: false
