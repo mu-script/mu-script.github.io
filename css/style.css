@@ -136,8 +136,12 @@ tbody:after {
   float: left;
   height: 64px;
   margin: 0 4px;
-  /* TODO use svg */
+}
+
+#header .header.blob img {
   image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  image-rendering: -moz-crisp-edges;
 }
 
 #header .header.left {
