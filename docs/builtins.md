@@ -5,26 +5,26 @@ layout: page
 Builtins
 --------
 
-| Consts            | Types         | Logic         | Arith             | Bit/Set     | String                | Data            | Iterator              | Function        | IO                  |
-| ----------------- | ------------- | ------------- | ----------------- | ----------- | --------------------- | --------------- | --------------------- | --------------- | ------------------- |
-| [`nil`](#nil)     | [`num`](#num) | [`and`](#and) | [`+`](#+)         | [`~`](#~)   | [`parse`](#parse)     | [`len`](#len)   | [`iter`](#iter)       | [`bind`](#bind) | [`print`](#print)   |
-| [`_`](#_)         | [`str`](#str) | [`or`](#or)   | [`-`](#-)         | [`|`](#\|)  | [`repr`](#repr)       | [`tail`](#tail) | [`pairs`](#pairs)     | [`comp`](#comp) | [`error`](#error)   |
-| [`true`](#true)   | [`tbl`](#tbl) | [`!`](#!)     | [`*`](#*)         | [`&`](#&)   | [`bin`](#bin)         | [`push`](#push) | [`range`](#range)     |                 | [`import`](#import) |
-| [`false`](#false) | [`fn_`](#fn_) | [`==`](#==)   | [`/`](#/)         | [`&~`](#&~) | [`oct`](#oct)         | [`pop`](#pop)   | [`repeat`](#repeat)   |                 |                     |
-| [`inf`](#inf)     |               | [`!=`](#!=)   | [`//`](#//)       | [`<<`](#<<) | [`hex`](#hex)         | [`++`](#++)     | [`seed`](#seed)       |                 |                     |
-| [`inf`](#inf)     |               | [`is`](#is)   | [`%`](#%)         | [`>>`](#>>) | [`find`](#find)       | [`sub`](#sub)   | [`map`](#map)         |                 |                     |
-| [`e`](#e)         |               | [`<`](#<)     | [`^`](#^)         |             | [`replace`](#replace) |                 | [`filter`](#filter)   |                 |                     |
-| [`pi`](#pi)       |               | [`>`](#>)     | [`log`](#log)     |             | [`split`](#split)     |                 | [`reduce`](#reduce)   |                 |                     |
-| [`id`](#id)       |               | [`<=`](#<=)   | [`abs`](#abs)     |             | [`join`](#join)       |                 | [`any`](#any)         |                 |                     |
-|                   |               | [`>=`](#>=)   | [`floor`](#floor) |             | [`pad`](#pad)         |                 | [`all`](#all)         |                 |                     |
-|                   |               |               | [`ceil`](#ceil)   |             | [`strip`](#strip)     |                 | [`zip`](#zip)         |                 |                     |
-|                   |               |               | [`cos`](#cos)     |             |                       |                 | [`chain`](#chain)     |                 |                     |
-|                   |               |               | [`acos`](#acos)   |             |                       |                 | [`take`](#take)       |                 |                     |
-|                   |               |               | [`sin`](#sin)     |             |                       |                 | [`drop`](#drop)       |                 |                     |
-|                   |               |               | [`asin`](#asin)   |             |                       |                 | [`min`](#min)         |                 |                     |
-|                   |               |               | [`tan`](#tan)     |             |                       |                 | [`max`](#max)         |                 |                     |
-|                   |               |               | [`atan`](#atan)   |             |                       |                 | [`sort`](#sort)       |                 |                     |
-|                   |               |               |                   |             |                       |                 | [`reverse`](#reverse) |                 |                     |
+| Consts            | Types         | Logic         | Arith             | Bit/Set     | String                | Data              | Iterator              | Function        | IO                  |
+| ----------------- | ------------- | ------------- | ----------------- | ----------- | --------------------- | ----------------- | --------------------- | --------------- | ------------------- |
+| [`nil`](#nil)     | [`num`](#num) | [`and`](#and) | [`+`](#+)         | [`~`](#~)   | [`parse`](#parse)     | [`len`](#len)     | [`iter`](#iter)       | [`bind`](#bind) | [`print`](#print)   |
+| [`_`](#_)         | [`str`](#str) | [`or`](#or)   | [`-`](#-)         | [`|`](#\|)  | [`repr`](#repr)       | [`tail`](#tail)   | [`pairs`](#pairs)     | [`@`](#@)       | [`error`](#error)   |
+| [`true`](#true)   | [`tbl`](#tbl) | [`!`](#!)     | [`*`](#*)         | [`&`](#&)   | [`bin`](#bin)         | [`const`](#const) | [`range`](#range)     |                 | [`import`](#import) |
+| [`false`](#false) | [`fn_`](#fn_) | [`==`](#==)   | [`/`](#/)         | [`&~`](#&~) | [`oct`](#oct)         | [`push`](#push)   | [`repeat`](#repeat)   |                 |                     |
+| [`inf`](#inf)     |               | [`!=`](#!=)   | [`//`](#//)       | [`<<`](#<<) | [`hex`](#hex)         | [`pop`](#pop)     | [`random`](#random)   |                 |                     |
+| [`E`](#E)         |               | [`is`](#is)   | [`%`](#%)         | [`>>`](#>>) | [`chr`](#chr)         | [`++`](#++)       | [`map`](#map)         |                 |                     |
+| [`PI`](#PI)       |               | [`<`](#<)     | [`^`](#^)         |             | [`ord`](#ord)         | [`sub`](#sub)     | [`filter`](#filter)   |                 |                     |
+|                   |               | [`>`](#>)     | [`log`](#log)     |             | [`find`](#find)       |                   | [`reduce`](#reduce)   |                 |                     |
+|                   |               | [`<=`](#<=)   | [`abs`](#abs)     |             | [`replace`](#replace) |                   | [`any`](#any)         |                 |                     |
+|                   |               | [`>=`](#>=)   | [`floor`](#floor) |             | [`split`](#split)     |                   | [`all`](#all)         |                 |                     |
+|                   |               |               | [`ceil`](#ceil)   |             | [`join`](#join)       |                   | [`zip`](#zip)         |                 |                     |
+|                   |               |               | [`cos`](#cos)     |             | [`pad`](#pad)         |                   | [`chain`](#chain)     |                 |                     |
+|                   |               |               | [`acos`](#acos)   |             | [`strip`](#strip)     |                   | [`take`](#take)       |                 |                     |
+|                   |               |               | [`sin`](#sin)     |             |                       |                   | [`drop`](#drop)       |                 |                     |
+|                   |               |               | [`asin`](#asin)   |             |                       |                   | [`min`](#min)         |                 |                     |
+|                   |               |               | [`tan`](#tan)     |             |                       |                   | [`max`](#max)         |                 |                     |
+|                   |               |               | [`atan`](#atan)   |             |                       |                   | [`sort`](#sort)       |                 |                     |
+|                   |               |               |                   |             |                       |                   | [`reverse`](#reverse) |                 |                     |
 
 
 Constants
@@ -49,19 +49,14 @@ Comparison functions return this value on success, however any non-nil value is 
 Numeric representation of infinity.
 </dd>
 
-<dt id="e" markdown="span">[e](#e)</dt>
+<dt id="E" markdown="span">[e](#e)</dt>
 <dd markdown="block">
-The constant e = 2.718281..
+The constant E = 2.718281..
 </dd>
 
-<dt id="pi" markdown="span">[pi](#pi)</dt>
+<dt id="PI" markdown="span">[pi](#pi)</dt>
 <dd markdown="block">
-The constant pi = 3.141592..
-</dd>
-
-<dt id="id" markdown="span">[id](#id)</dt>
-<dd markdown="block">
-The identity function, returns any arguments without modification.
+The constant PI = 3.141592..
 </dd>
 </dl>
 
@@ -74,21 +69,16 @@ Converts x to a number.
 
 By default returns `0`.  
 If x is a number, x is returned unmodified.  
-If x is a single character string, returns the ascii value of x.
-
-To parse a string representation, [parse](#parse) can be used.
+If x is a string, x is parsed as a number.
 </dd>
 
 <dt id="str" markdown="span">[str](#str)(x) -> str</dt>
 <dd markdown="block">
 Converts x to a string.
 
-By default returns `""`.  
-If x is a number, converts x to an ascii character.  
-If x is a string, x is returned unmodified.  
-If x is iterable, the strings in x are joined together.
-
-To get a string representation, [repr](#repr) can be used.
+By default returns `""`.
+If x is a string, x is returned unmodified
+Otherwise, returns repr(x, 0)
 </dd>
 
 <dt id="tbl" markdown="span">[tbl](#tbl)(x[, tail]) -> tbl</dt>
@@ -107,7 +97,7 @@ If a tail is provided, the new table inherits the tail's elements.
 <dd markdown="block">
 Converts x to a function.
 
-By default id is returned.  
+By default a function that consumes all arguments is returned. 
 If x is a function, x is returned unmodified.
 
 Note: the the name `fn_` is used to avoid conflict with function declarations.
@@ -149,6 +139,8 @@ If x/y are tables or functions, result is true if x and y reference the same val
 <dt id="is" markdown="span">[is](#is)(x, t) -> bool</dt>
 <dd markdown="block">
 Returns true if x is of type t.
+
+If x and t are both tables, returns true if x inherits t.
 </dd>
 
 <div id="<"><div id=">"><div id="<="><div id=">=">
@@ -318,7 +310,7 @@ String Operations
 <dd markdown="block">
 Returns the string x parsed as a Mu literal.
 
-If x could not be parsed, an error is raised.
+Returns nil if x could not be parsed.
 </dd>
 
 <dt id="repr" markdown="span">[repr](#repr)(x[, depth]) -> str</dt>
@@ -339,6 +331,16 @@ Depth indicates how many nested tables to represent, by default depth is `1`.
 Returns the string representation of x in the specific base.
 </dd>
 
+<dt id="chr" markdown="span">[chr](#chr)(x) -> str</dt>
+<dd markdown="block">
+Returns the character represented by the number x in ascii.
+</dd>
+
+<dt id="ord" markdown="span">[ord](#ord)(x) -> num</dt>
+<dd markdown="block">
+Returns the numeric value of the character x in ascii.
+</dd>
+
 <dt id="find" markdown="span">[find](#find)(x, match) -> lower, upper</dt>
 <dd markdown="block">
 Finds the first occurance of match in x.
@@ -356,14 +358,14 @@ Replaces each occurance of m with r in x.
 <dd markdown="block">
 Returns an iterator of the substrings separated by the delimiter.
 
-By default the delimiter is `' '`.
+By default the delimiter is `''`.
 </dd>
 
 <dt id="join" markdown="span">[join](#join)(x[, delim]) -> str</dt>
 <dd markdown="block">
 Joins each element of x into a string separated by the delimiter.
 
-By default the delimiter is `' '`.
+By default the delimiter is `''`.
 </dd>
 
 <dt id="pad" markdown="span">[pad](#pad)(x, len[, padding]) -> str</dt>
@@ -394,6 +396,11 @@ Returns the number of elements in x.
 <dt id="tail" markdown="span">[tail](#tail)(x) -> tbl</dt>
 <dd markdown="block">
 Returns the tail chain of x.
+</dd>
+
+<dt id="const" markdown="span">[const](#const)(x) -> y</dt>
+<dd markdown="block">
+Returns a constant reference to x.
 </dd>
 
 <dt id="push" markdown="span">[push](#push)(x, v[, index])</dt>
@@ -455,12 +462,12 @@ Returns an iterator that repeats x, n times.
 By default n is `inf`.
 </dd>
 
-<dt id="seed" markdown="span">[seed](#seed)([n]) -> iter</dt>
+<dt id="random" markdown="span">[random](#random)([n]) -> iter</dt>
 <dd markdown="block">
 Returns a pseudo-random number generator seeded by n.
 
 By default an arbitrary seed is used.  
-If the same n is passed into seed, the same random sequence will be generated.
+If the same n is passed into random, the same random sequence will be generated.
 </dd>
 
 <dt id="map" markdown="span">[map](#map)(x, iter) -> iter</dt>
@@ -560,9 +567,9 @@ Function Operations
 Returns a function that will call x with args prepended to arguments.
 </dd>
 
-<dt id="comp" markdown="span">[comp](#comp)(..fns) -> fn</dt>
+<dt id="@" markdown="span">a [@](#@) b -> fn</dt>
 <dd markdown="block">
-Returns a function that calls each function composed from right to left.
+Returns a function that calls the functions composed from right to left.
 </dd>
 </dl>
 
