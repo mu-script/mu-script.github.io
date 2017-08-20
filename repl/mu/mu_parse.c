@@ -1,10 +1,11 @@
-#include "parse.h"
-
-#include "vm.h"
-#include "num.h"
-#include "str.h"
-#include "tbl.h"
-#include "fn.h"
+/*
+ * Mu parsing and compilation
+ *
+ * Copyright (c) 2016 Christopher Haster
+ * Distributed under the MIT license in mu.h
+ */
+#include "mu_parse.h"
+#include "mu.h"
 
 
 //// Definitions ////
@@ -76,65 +77,65 @@ enum mtok {
 #define T_ANY (-1)
 
 // Table of keywords
-MU_GEN_STR(mu_gen_key_let,        "let")
-MU_GEN_STR(mu_gen_key_else,       "else")
-MU_GEN_STR(mu_gen_key_and,        "and")
-MU_GEN_STR(mu_gen_key_or,         "or")
-MU_GEN_STR(mu_gen_key_continue,   "continue")
-MU_GEN_STR(mu_gen_key_break,      "break")
-MU_GEN_STR(mu_gen_key_return,     "return")
-MU_GEN_STR(mu_gen_key_fn,         "fn")
-MU_GEN_STR(mu_gen_key_type,       "type")
-MU_GEN_STR(mu_gen_key_if,         "if")
-MU_GEN_STR(mu_gen_key_while,      "while")
-MU_GEN_STR(mu_gen_key_for,        "for")
-MU_GEN_STR(mu_gen_key_nil,        "nil")
-MU_GEN_STR(mu_gen_key_nil2,       "_")
-MU_GEN_STR(mu_gen_key_assign,     "=")
-MU_GEN_STR(mu_gen_key_pair,       ":")
-MU_GEN_STR(mu_gen_key_dot,        ".")
-MU_GEN_STR(mu_gen_key_arrow,      "->")
-MU_GEN_STR(mu_gen_key_expand,     "..")
+MU_DEF_STR(mu_kw_let_def,       "let")
+MU_DEF_STR(mu_kw_else_def,      "else")
+MU_DEF_STR(mu_kw_and_def,       "and")
+MU_DEF_STR(mu_kw_or_def,        "or")
+MU_DEF_STR(mu_kw_continue_def,  "continue")
+MU_DEF_STR(mu_kw_break_def,     "break")
+MU_DEF_STR(mu_kw_return_def,    "return")
+MU_DEF_STR(mu_kw_fn_def,        "fn")
+MU_DEF_STR(mu_kw_type_def,      "type")
+MU_DEF_STR(mu_kw_if_def,        "if")
+MU_DEF_STR(mu_kw_while_def,     "while")
+MU_DEF_STR(mu_kw_for_def,       "for")
+MU_DEF_STR(mu_kw_nil_def,       "nil")
+MU_DEF_STR(mu_kw_nil2_def,      "_")
+MU_DEF_STR(mu_kw_assign_def,    "=")
+MU_DEF_STR(mu_kw_pair_def,      ":")
+MU_DEF_STR(mu_kw_dot_def,       ".")
+MU_DEF_STR(mu_kw_arrow_def,     "->")
+MU_DEF_STR(mu_kw_expand_def,    "..")
 
-MU_GEN_UINT(mu_gen_tok_let,       T_LET)
-MU_GEN_UINT(mu_gen_tok_else,      T_ELSE)
-MU_GEN_UINT(mu_gen_tok_and,       T_AND)
-MU_GEN_UINT(mu_gen_tok_or,        T_OR)
-MU_GEN_UINT(mu_gen_tok_cont,      T_CONTINUE)
-MU_GEN_UINT(mu_gen_tok_break,     T_BREAK)
-MU_GEN_UINT(mu_gen_tok_return,    T_RETURN)
-MU_GEN_UINT(mu_gen_tok_fn,        T_FN)
-MU_GEN_UINT(mu_gen_tok_type,      T_TYPE)
-MU_GEN_UINT(mu_gen_tok_if,        T_IF)
-MU_GEN_UINT(mu_gen_tok_while,     T_WHILE)
-MU_GEN_UINT(mu_gen_tok_for,       T_FOR)
-MU_GEN_UINT(mu_gen_tok_nil,       T_NIL)
-MU_GEN_UINT(mu_gen_tok_assign,    T_ASSIGN)
-MU_GEN_UINT(mu_gen_tok_pair,      T_PAIR)
-MU_GEN_UINT(mu_gen_tok_dot,       T_DOT)
-MU_GEN_UINT(mu_gen_tok_arrow,     T_ARROW)
-MU_GEN_UINT(mu_gen_tok_expand,    T_EXPAND)
+MU_DEF_UINT(mu_tok_let_def,     T_LET)
+MU_DEF_UINT(mu_tok_else_def,    T_ELSE)
+MU_DEF_UINT(mu_tok_and_def,     T_AND)
+MU_DEF_UINT(mu_tok_or_def,      T_OR)
+MU_DEF_UINT(mu_tok_cont_def,    T_CONTINUE)
+MU_DEF_UINT(mu_tok_break_def,   T_BREAK)
+MU_DEF_UINT(mu_tok_return_def,  T_RETURN)
+MU_DEF_UINT(mu_tok_fn_def,      T_FN)
+MU_DEF_UINT(mu_tok_type_def,    T_TYPE)
+MU_DEF_UINT(mu_tok_if_def,      T_IF)
+MU_DEF_UINT(mu_tok_while_def,   T_WHILE)
+MU_DEF_UINT(mu_tok_for_def,     T_FOR)
+MU_DEF_UINT(mu_tok_nil_def,     T_NIL)
+MU_DEF_UINT(mu_tok_assign_def,  T_ASSIGN)
+MU_DEF_UINT(mu_tok_pair_def,    T_PAIR)
+MU_DEF_UINT(mu_tok_dot_def,     T_DOT)
+MU_DEF_UINT(mu_tok_arrow_def,   T_ARROW)
+MU_DEF_UINT(mu_tok_expand_def,  T_EXPAND)
 
-MU_GEN_TBL(mu_gen_keywords, {
-    { mu_gen_key_let,        mu_gen_tok_let    },
-    { mu_gen_key_else,       mu_gen_tok_else   },
-    { mu_gen_key_and,        mu_gen_tok_and    },
-    { mu_gen_key_or,         mu_gen_tok_or     },
-    { mu_gen_key_continue,   mu_gen_tok_cont   },
-    { mu_gen_key_break,      mu_gen_tok_break  },
-    { mu_gen_key_return,     mu_gen_tok_return },
-    { mu_gen_key_fn,         mu_gen_tok_fn     },
-    { mu_gen_key_type,       mu_gen_tok_type   },
-    { mu_gen_key_if,         mu_gen_tok_if     },
-    { mu_gen_key_while,      mu_gen_tok_while  },
-    { mu_gen_key_for,        mu_gen_tok_for    },
-    { mu_gen_key_nil,        mu_gen_tok_nil    },
-    { mu_gen_key_nil2,       mu_gen_tok_nil    },
-    { mu_gen_key_assign,     mu_gen_tok_assign },
-    { mu_gen_key_pair,       mu_gen_tok_pair   },
-    { mu_gen_key_dot,        mu_gen_tok_dot    },
-    { mu_gen_key_arrow,      mu_gen_tok_arrow  },
-    { mu_gen_key_expand,     mu_gen_tok_expand },
+MU_DEF_TBL(mu_keywords_def, {
+    { mu_kw_let_def,        mu_tok_let_def    },
+    { mu_kw_else_def,       mu_tok_else_def   },
+    { mu_kw_and_def,        mu_tok_and_def    },
+    { mu_kw_or_def,         mu_tok_or_def     },
+    { mu_kw_continue_def,   mu_tok_cont_def   },
+    { mu_kw_break_def,      mu_tok_break_def  },
+    { mu_kw_return_def,     mu_tok_return_def },
+    { mu_kw_fn_def,         mu_tok_fn_def     },
+    { mu_kw_type_def,       mu_tok_type_def   },
+    { mu_kw_if_def,         mu_tok_if_def     },
+    { mu_kw_while_def,      mu_tok_while_def  },
+    { mu_kw_for_def,        mu_tok_for_def    },
+    { mu_kw_nil_def,        mu_tok_nil_def    },
+    { mu_kw_nil2_def,       mu_tok_nil_def    },
+    { mu_kw_assign_def,     mu_tok_assign_def },
+    { mu_kw_pair_def,       mu_tok_pair_def   },
+    { mu_kw_dot_def,        mu_tok_dot_def    },
+    { mu_kw_arrow_def,      mu_tok_arrow_def  },
+    { mu_kw_expand_def,     mu_tok_expand_def },
 })
 
 
@@ -256,6 +257,7 @@ struct mmatch {
 
 // Parsing state
 struct mparse {
+    mu_t scope;
     mu_t imms;
     mu_t bcode;
     mlen_t bcount;
@@ -264,7 +266,6 @@ struct mparse {
     mlen_t cchain;
 
     muintq_t args;
-    muintq_t scope;
     muintq_t regs;
     muintq_t sp;
 
@@ -294,13 +295,23 @@ struct mexpr {
     muintq_t prec;
     muintq_t params;
     mstate_t state;
+    uint8_t insert : 1;
 };
 
 
 //// Error handling ////
 
 // Common errors
-static mu_noreturn mu_error_parse(struct mlex *l, mu_t message) {
+#define mu_checkparse(pred, ...) \
+        ((pred) ? (void)0 : mu_errorparse(__VA_ARGS__))
+static mu_noreturn mu_errorparse(struct mlex *l, const char *f, ...) {
+    va_list args;
+    va_start(args, f);
+
+    mu_t b = mu_buf_create(0);
+    muint_t n = 0;
+    mu_buf_vpushf(&b, &n, f, args);
+
     const mbyte_t *p = l->begin;
     muint_t lines = 1;
     muint_t nlines = 1;
@@ -321,53 +332,47 @@ static mu_noreturn mu_error_parse(struct mlex *l, mu_t message) {
         }
     }
 
-    if (lines == 1) {
-        mu_errorf("%m", message);
-    } else {
-        mu_errorf("%m on line %wu", message, lines);
+    if (lines != 1) {
+        mu_buf_pushf(&b, &n, " on line %wu", lines);
     }
+
+    mu_error(mu_buf_getdata(b), n);
 }
 
-static mu_noreturn mu_error_character(struct mlex *l) {
-    mu_error_parse(l, mu_str_format("unexpected %c", l->pos));
+#define mu_checkchr(pred, ...) \
+        ((pred) ? (void)0 : mu_errorchr(__VA_ARGS__))
+static mu_noreturn mu_errorchr(struct mlex *l) {
+    mu_errorparse(l, "unexpected %c", l->pos);
 }
 
-static mu_noreturn mu_error_token(struct mlex *l) {
-    mu_t b = mu_buf_create(0);
-    muint_t n = 0;
-    mu_buf_format(&b, &n, "unexpected ");
-
+#define mu_checktoken(pred, ...) \
+        ((pred) ? (void)0 : mu_errortoken(__VA_ARGS__))
+static mu_noreturn mu_errortoken(struct mlex *l) {
     if (l->tok & T_ANY_VAL) {
-        mu_buf_format(&b, &n, "%r", mu_inc(l->val));
-    } else if (l->tok & T_TERM) {
-        mu_buf_format(&b, &n, "terminator");
-    } else if (l->tok & T_SEP) {
-        mu_buf_format(&b, &n, "','");
-    } else if (l->tok & T_LPAREN) {
-        mu_buf_format(&b, &n, "'('");
-    } else if (l->tok & T_RPAREN) {
-        mu_buf_format(&b, &n, "')'");
-    } else if (l->tok & T_LTABLE) {
-        mu_buf_format(&b, &n, "'['");
-    } else if (l->tok & T_RTABLE) {
-        mu_buf_format(&b, &n, "']'");
-    } else if (l->tok & T_LBLOCK) {
-        mu_buf_format(&b, &n, "'{'");
-    } else if (l->tok & T_RBLOCK) {
-        mu_buf_format(&b, &n, "'}'");
+        mu_checkparse(false, l, "unexpected %r", mu_inc(l->val));
     } else {
-        mu_buf_format(&b, &n, "end");
+        mu_checkparse(false, l, "unexpected %s",
+                l->tok & T_TERM   ? "terminator" :
+                l->tok & T_SEP    ? "','" :
+                l->tok & T_LPAREN ? "'('" :
+                l->tok & T_RPAREN ? "')'" :
+                l->tok & T_LTABLE ? "'['" :
+                l->tok & T_RTABLE ? "']'" :
+                l->tok & T_LBLOCK ? "'{'" :
+                l->tok & T_RBLOCK ? "'}'" : "end");
     }
-
-    mu_error_parse(l, mu_str_intern(b, n));
 }
 
-static mu_noreturn mu_error_assignment(struct mlex *l) {
-    mu_error_parse(l, mu_str_format("invalid assignment"));
+#define mu_checkassign(pred, ...) \
+        ((pred) ? (void)0 : mu_errorassign(__VA_ARGS__))
+static void mu_errorassign(struct mlex *l) {
+    mu_errorparse(l, "invalid assignment");
 }
 
-static mu_noreturn mu_error_expression(mbyte_t c) {
-    mu_errorf("unexpected %r in expression", mu_str_fromdata(&c, 1));
+#define mu_checkscope(pred, ...) \
+        ((pred) ? (void)0 : mu_errorscope(__VA_ARGS__))
+static void mu_errorscope(struct mlex *l, mu_t m) {
+    mu_errorparse(l, "undefined %r", m);
 }
 
 
@@ -428,12 +433,14 @@ static void l_kw(struct mlex *l) {
 }
 
 static void l_num(struct mlex *l) {
-    l->val = mu_num_parse(&l->pos, l->end);
+    l->val = mu_num_parsen(&l->pos, l->end);
+    mu_checkparse(l->val, l, "invalid number literal");
     l->tok = T_IMM;
 }
 
 static void l_str(struct mlex *l) {
-    l->val = mu_str_parse(&l->pos, l->end);
+    l->val = mu_str_parsen(&l->pos, l->end);
+    mu_checkparse(l->val, l, "unterminated string literal");
     l->tok = T_IMM;
 }
 
@@ -453,7 +460,7 @@ static void lex_next(struct mlex *l) {
 
     mclass_t lclass = class[*l->pos];
     switch (lclass) {
-        case L_NONE:    mu_error_character(l);
+        case L_NONE:    mu_checkchr(false, l);
 
         case L_WS:                   l_indent(l); break;
         case L_OP:      l->prec = 0; l_op(l);     break;
@@ -510,7 +517,8 @@ mu_inline void lex_dec(struct mlex l) {
 
 //// Lexing shortcuts ////
 static mu_noreturn unexpected(struct mparse *p) {
-    mu_error_token(&p->l);
+    mu_checktoken(false, &p->l);
+    mu_unreachable;
 }
 
 static bool next(struct mparse *p, mtok_t tok) {
@@ -557,11 +565,11 @@ static bool lookahead(struct mparse *p, mtok_t a, mtok_t b) {
 // Actual encoding is defered to virtual machine
 static void emit(struct mparse *p, mbyte_t byte) {
     muint_t bcount = p->bcount;
-    mu_buf_push(&p->bcode, &bcount, byte);
+    mu_buf_pushchr(&p->bcode, &bcount, byte);
     p->bcount = bcount;
 }
 
-static void encode(struct mparse *p, enum mop op,
+static void encode(struct mparse *p, mop_t op,
                    minth_t d, minth_t a, minth_t b,
                    mint_t sdiff) {
     p->sp += sdiff;
@@ -590,7 +598,7 @@ static void patch_all(struct mparse *p, mlen_t chain, minth_t offset) {
 
 // Storing immediates/code objects
 #define IMM_NIL imm_nil()
-MU_GEN_BFN(imm_nil, 0, 0)
+MU_DEF_BFN(imm_nil, 0, 0)
 
 static muint_t imm(struct mparse *p, mu_t m) {
     if (!m) {
@@ -609,6 +617,17 @@ static muint_t imm(struct mparse *p, mu_t m) {
     return index;
 }
 
+// Scope checking, does not consume
+static void scopecheck(struct mparse *p, mu_t m, bool insert) {
+    if (insert) {
+        mu_tbl_insert(p->scope, mu_inc(m), IMM_NIL);
+    } else {
+        mu_t s = mu_tbl_lookup(p->scope, mu_inc(m));
+        mu_checkscope(s, &p->l, m);
+        mu_dec(s);
+    }
+}
+
 // More complicated encoding operations
 static muint_t offset(struct mexpr *e) {
     if (e->state == P_INDIRECT) {
@@ -620,57 +639,56 @@ static muint_t offset(struct mexpr *e) {
     }
 }
 
-static void encode_load(struct mparse *p, struct mexpr *e, mint_t offset) {
-    if (e->state == P_INDIRECT) {
-        encode(p, MOP_LOOKDN, p->sp+offset-1, p->sp-1, p->sp, +offset-1);
-    } else if (e->state == P_SCOPED) {
-        encode(p, MOP_LOOKUP, p->sp+offset, 0, p->sp, +offset);
+static void encload(struct mparse *p, struct mexpr *e, mint_t offset) {
+    if (e->state == P_SCOPED) {
+        encode(p, MU_OP_LOOKUP, p->sp+offset, 0, p->sp, +offset);
+    } else if (e->state == P_INDIRECT) {
+        encode(p, MU_OP_LOOKDN, p->sp+offset-1, p->sp-1, p->sp, +offset-1);
     } else if (e->state == P_NIL) {
-        encode(p, MOP_IMM, p->sp+offset+1, imm(p, 0), 0, +offset+1);
+        encode(p, MU_OP_IMM, p->sp+offset+1, imm(p, 0), 0, +offset+1);
     } else {
         if (e->state == P_CALLED) {
-            encode(p, MOP_CALL, p->sp-(e->params == 0xf ? 1 : e->params),
+            encode(p, MU_OP_CALL, p->sp-(e->params == 0xf ? 1 : e->params),
                    (e->params << 4) | 1, 0,
                    -(e->params == 0xf ? 1 : e->params));
         }
 
         if (offset != 0) {
-            encode(p, MOP_MOVE, p->sp+offset, p->sp, 0, +offset);
+            encode(p, MU_OP_MOVE, p->sp+offset, p->sp, 0, +offset);
         }
     }
 }
 
-static void encode_store(struct mparse *p, struct mexpr *e,
+static void encstore(struct mparse *p, struct mexpr *e,
                          bool insert, mint_t offset) {
     if (e->state == P_NIL) {
-        encode(p, MOP_DROP, p->sp-offset, 0, 0, 0);
+        encode(p, MU_OP_DROP, p->sp-offset, 0, 0, 0);
     } else if (e->state == P_SCOPED) {
-        encode(p, insert ? MOP_INSERT : MOP_ASSIGN,
+        encode(p, insert ? MU_OP_INSERT : MU_OP_ASSIGN,
                p->sp-offset-1, 0, p->sp, -1);
     } else if (e->state == P_INDIRECT) {
-        encode(p, insert ? MOP_INSERT : MOP_ASSIGN,
+        encode(p, insert ? MU_OP_INSERT : MU_OP_ASSIGN,
                p->sp-offset-2, p->sp-1, p->sp, 0);
-        encode(p, MOP_DROP, p->sp-1, 0, 0, -2);
+        encode(p, MU_OP_DROP, p->sp-1, 0, 0, -2);
     } else {
-        mu_error_assignment(&p->l);
+        mu_checkassign(false, &p->l);
     }
 }
 
-// Completing a parse and generating the final code object
-static mu_t compile(struct mparse *p) {
-    mu_t b = mu_buf_create(
+// Completing a parse and deferating the final code object
+static mu_t compile(struct mparse *p, bool weak) {
+    extern void mu_code_destroy(mu_t);
+    mu_t b = mu_buf_createdtor(
             mu_offsetof(struct mcode, data) +
             sizeof(mu_t)*mu_tbl_getlen(p->imms) +
-            p->bcount);
-
-    extern void mu_code_destroy(mu_t);
-    mu_buf_setdtor(&b, mu_code_destroy);
+            p->bcount,
+            mu_code_destroy);
 
     struct mcode *code = mu_buf_getdata(b);
     code->args = p->args;
-    code->flags = MFN_SCOPED;
+    code->flags = MFN_SCOPED | (weak ? MFN_WEAK : 0);
     code->regs = p->regs;
-    code->scope = p->scope;
+    code->locals = mu_tbl_getlen(p->scope);
     code->icount = mu_tbl_getlen(p->imms);
     code->bcount = p->bcount;
 
@@ -683,8 +701,9 @@ static mu_t compile(struct mparse *p) {
     mbyte_t *bcode = mu_code_getbcode(b);
     memcpy(bcode, mu_buf_getdata(p->bcode), p->bcount);
 
-    mu_tbl_dec(p->imms);
-    mu_buf_dec(p->bcode);
+    mu_dec(p->imms);
+    mu_dec(p->bcode);
+    mu_dec(p->scope);
     mu_dec(p->m.val);
     return b;
 }
@@ -804,12 +823,11 @@ static void p_fn(struct mparse *p, bool weak) {
         .bcode = mu_buf_create(0),
         .bcount = 0,
 
+        .scope = mu_tbl_createtail(0, mu_inc(p->scope)),
         .imms = mu_tbl_create(0),
         .bchain = -1,
         .cchain = -1,
-
         .regs = 1,
-        .scope = MU_MINALLOC / sizeof(muint_t),
 
         .l = p->l,
     };
@@ -823,13 +841,12 @@ static void p_fn(struct mparse *p, bool weak) {
     expect(&q, T_RPAREN);
 
     p_stmt(&q);
-    encode(&q, MOP_RET, 0, 0, 0, 0);
+    encode(&q, MU_OP_RET, 0, 0, 0, 0);
 
     p->l = q.l;
 
-    mu_t c = compile(&q);
-    mu_code_getheader(c)->flags |= weak ? MFN_WEAK : 0;
-    encode(p, MOP_FN, p->sp+1, imm(p, c), 0, +1);
+    mu_t c = compile(&q, weak);
+    encode(p, MU_OP_FN, p->sp+1, imm(p, c), 0, +1);
 }
 
 static void p_if(struct mparse *p, bool expr) {
@@ -838,8 +855,8 @@ static void p_if(struct mparse *p, bool expr) {
     expect(p, T_RPAREN);
 
     mlen_t cond_offset = p->bcount;
-    encode(p, MOP_JFALSE, p->sp, 0, 0, 0);
-    encode(p, MOP_DROP, p->sp, 0, 0, -1);
+    encode(p, MU_OP_JFALSE, p->sp, 0, 0, 0);
+    encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
 
     if (expr) {
         p_expr(p);
@@ -850,7 +867,7 @@ static void p_if(struct mparse *p, bool expr) {
     if (next(p, T_ELSE) || (!expr && lookahead(p, T_TERM, T_ELSE))) {
         expect(p, T_ELSE);
         mlen_t exit_offset = p->bcount;
-        encode(p, MOP_JUMP, 0, 0, 0, -expr);
+        encode(p, MU_OP_JUMP, 0, 0, 0, -expr);
         mlen_t else_offset = p->bcount;
 
         if (expr) {
@@ -875,15 +892,15 @@ static void p_while(struct mparse *p) {
     expect(p, T_RPAREN);
 
     mlen_t cond_offset = p->bcount;
-    encode(p, MOP_JFALSE, p->sp, 0, 0, 0);
-    encode(p, MOP_DROP, p->sp, 0, 0, -1);
+    encode(p, MU_OP_JFALSE, p->sp, 0, 0, 0);
+    encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
 
     mlen_t bchain = p->bchain; p->bchain = 0;
     mlen_t cchain = p->cchain; p->cchain = 0;
 
     p_stmt(p);
 
-    encode(p, MOP_JUMP, 0, while_offset - p->bcount, 0, 0);
+    encode(p, MU_OP_JUMP, 0, while_offset - p->bcount, 0, 0);
     patch(p, cond_offset, p->bcount - cond_offset);
 
     patch_all(p, p->bchain, p->bcount);
@@ -899,29 +916,27 @@ static void p_for(struct mparse *p) {
     s_frame(p, &f, true);
 
     expect(p, T_ASSIGN);
-    if (f.count == 0 && !f.tabled) {
-        mu_error_assignment(&p->l);
-    }
+    mu_checkassign(f.count != 0 || f.tabled, &p->l);
 
-    encode(p, MOP_IMM, p->sp+1, imm(p, MU_KEY_ITER), 0, +1);
-    encode(p, MOP_LOOKUP, p->sp, 0, p->sp, 0);
+    encode(p, MU_OP_IMM, p->sp+1, imm(p, MU_ITER_KEY), 0, +1);
+    encode(p, MU_OP_LOOKUP, p->sp, 0, p->sp, 0);
     p_expr(p);
-    encode(p, MOP_CALL, p->sp-1, 0x11, 0, -1);
+    encode(p, MU_OP_CALL, p->sp-1, 0x11, 0, -1);
 
     mlen_t for_offset = p->bcount;
     mlen_t cond_offset;
-    encode(p, MOP_DUP, p->sp+1, p->sp, 0, +1);
+    encode(p, MU_OP_DUP, p->sp+1, p->sp, 0, +1);
     if (f.tabled) {
-        encode(p, MOP_CALL, p->sp, 0x0f, 0, 0);
-        encode(p, MOP_IMM, p->sp+1, imm(p, mu_num_fromuint(0)), 0, +1);
-        encode(p, MOP_LOOKUP, p->sp, p->sp-1, p->sp, 0);
+        encode(p, MU_OP_CALL, p->sp, 0x0f, 0, 0);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_num_fromuint(0)), 0, +1);
+        encode(p, MU_OP_LOOKUP, p->sp, p->sp-1, p->sp, 0);
         cond_offset = p->bcount;
-        encode(p, MOP_JFALSE, p->sp, 0, 0, 0);
-        encode(p, MOP_DROP, p->sp, 0, 0, -1);
+        encode(p, MU_OP_JFALSE, p->sp, 0, 0, 0);
+        encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
     } else {
-        encode(p, MOP_CALL, p->sp, 0 | f.count, 0, +f.count-1);
+        encode(p, MU_OP_CALL, p->sp, 0 | f.count, 0, +f.count-1);
         cond_offset = p->bcount;
-        encode(p, MOP_JFALSE, p->sp-f.count+1, 0, 0, 0);
+        encode(p, MU_OP_JFALSE, p->sp-f.count+1, 0, 0, 0);
     }
     mlen_t count = f.tabled ? 1 : f.count;
     struct mlex lr = p->l;
@@ -938,10 +953,10 @@ static void p_for(struct mparse *p) {
 
     p_stmt(p);
 
-    encode(p, MOP_JUMP, 0, for_offset - p->bcount, 0, 0);
+    encode(p, MU_OP_JUMP, 0, for_offset - p->bcount, 0, 0);
     patch(p, cond_offset, p->bcount - cond_offset);
     for (muint_t i = 0; i < count; i++) {
-        encode(p, MOP_DROP, p->sp+1 + i, 0, 0, 0);
+        encode(p, MU_OP_DROP, p->sp+1 + i, 0, 0, 0);
     }
 
     patch_all(p, p->bchain, p->bcount);
@@ -949,14 +964,14 @@ static void p_for(struct mparse *p) {
     p->bchain = bchain;
     p->cchain = cchain;
 
-    encode(p, MOP_DROP, p->sp, 0, 0, -1);
+    encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
 }
 
 static void p_expr(struct mparse *p) {
     muintq_t depth = p->l.depth; p->l.depth = p->l.paren;
     struct mexpr e = {.prec = -1};
     p_subexpr(p, &e);
-    encode_load(p, &e, 0);
+    encload(p, &e, 0);
     p->l.depth = depth;
 }
 
@@ -978,12 +993,13 @@ static void p_subexpr(struct mparse *p, struct mexpr *e) {
         p_postexpr(p, e);
 
     } else if (lookahead(p, T_ANY_OP, T_EXPR)) {
-        encode(p, MOP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
-        encode(p, MOP_LOOKUP, p->sp, 0, p->sp, 0);
+        scopecheck(p, p->m.val, false);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
+        encode(p, MU_OP_LOOKUP, p->sp, 0, p->sp, 0);
         muintq_t prec = e->prec; e->prec = p->m.prec;
         p_subexpr(p, e);
         e->prec = prec;
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         e->state = P_CALLED;
         e->params = 1;
         p_postexpr(p, e);
@@ -999,7 +1015,7 @@ static void p_subexpr(struct mparse *p, struct mexpr *e) {
         p_postexpr(p, e);
 
     } else if (match(p, T_IMM)) {
-        encode(p, MOP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
         e->state = P_DIRECT;
         p_postexpr(p, e);
 
@@ -1008,7 +1024,8 @@ static void p_subexpr(struct mparse *p, struct mexpr *e) {
         p_postexpr(p, e);
 
     } else if (match(p, T_SYM | T_ANY_OP)) {
-        encode(p, MOP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
+        scopecheck(p, p->m.val, e->insert);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
         e->state = P_SCOPED;
         p_postexpr(p, e);
 
@@ -1019,7 +1036,7 @@ static void p_subexpr(struct mparse *p, struct mexpr *e) {
 
 static void p_postexpr(struct mparse *p, struct mexpr *e) {
     if (match(p, T_LPAREN)) {
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         struct mframe f = {.unpack = false};
         s_frame(p, &f, false);
         f.tabled = f.tabled || f.call;
@@ -1030,7 +1047,7 @@ static void p_postexpr(struct mparse *p, struct mexpr *e) {
         p_postexpr(p, e);
 
     } else if (match(p, T_LTABLE)) {
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         p_expr(p);
         expect(p, T_RTABLE);
         e->state = P_INDIRECT;
@@ -1038,8 +1055,8 @@ static void p_postexpr(struct mparse *p, struct mexpr *e) {
 
     } else if (match(p, T_DOT)) {
         expect(p, T_ANY_SYM);
-        encode_load(p, e, 0);
-        encode(p, MOP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
+        encload(p, e, 0);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
         e->state = P_INDIRECT;
         p_postexpr(p, e);
 
@@ -1052,9 +1069,9 @@ static void p_postexpr(struct mparse *p, struct mexpr *e) {
             struct mframe f = {.unpack = false};
             s_frame(p, &f, false);
             if (!f.tabled && !f.call && f.target != MU_FRAME) {
-                encode_load(p, e, 1);
-                encode(p, MOP_IMM, p->sp-1, imm(p, sym), 0, 0);
-                encode(p, MOP_LOOKUP, p->sp-1, p->sp, p->sp-1, 0);
+                encload(p, e, 1);
+                encode(p, MU_OP_IMM, p->sp-1, imm(p, sym), 0, 0);
+                encode(p, MU_OP_LOOKUP, p->sp-1, p->sp, p->sp-1, 0);
                 p_frame(p, &f);
                 expect(p, T_RPAREN);
                 e->state = P_CALLED;
@@ -1064,47 +1081,48 @@ static void p_postexpr(struct mparse *p, struct mexpr *e) {
             }
             lex_dec(p->l); p->l = l;
         }
-        encode_load(p, e, 2);
-        encode(p, MOP_IMM, p->sp-1, imm(p, sym), 0, 0);
-        encode(p, MOP_LOOKUP, p->sp-1, p->sp, p->sp-1, 0);
-        encode(p, MOP_IMM, p->sp-2, imm(p, MU_KEY_BIND), 0, 0);
-        encode(p, MOP_LOOKUP, p->sp-2, 0, p->sp-2, 0);
-        encode(p, MOP_CALL, p->sp-2, 0x21, 0, -2);
+        encload(p, e, 2);
+        encode(p, MU_OP_IMM, p->sp-1, imm(p, sym), 0, 0);
+        encode(p, MU_OP_LOOKUP, p->sp-1, p->sp, p->sp-1, 0);
+        encode(p, MU_OP_IMM, p->sp-2, imm(p, MU_BIND_KEY), 0, 0);
+        encode(p, MU_OP_LOOKUP, p->sp-2, 0, p->sp-2, 0);
+        encode(p, MU_OP_CALL, p->sp-2, 0x21, 0, -2);
         e->state = P_DIRECT;
         p_postexpr(p, e);
 
     } else if (e->prec > p->l.prec && match(p, T_ANY_OP)) {
-        encode_load(p, e, 1);
-        encode(p, MOP_IMM, p->sp-1, imm(p, mu_inc(p->m.val)), 0, 0);
-        encode(p, MOP_LOOKUP, p->sp-1, 0, p->sp-1, 0);
+        encload(p, e, 1);
+        scopecheck(p, p->m.val, false);
+        encode(p, MU_OP_IMM, p->sp-1, imm(p, mu_inc(p->m.val)), 0, 0);
+        encode(p, MU_OP_LOOKUP, p->sp-1, 0, p->sp-1, 0);
         muintq_t prec = e->prec; e->prec = p->m.prec;
         p_subexpr(p, e);
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         e->prec = prec;
         e->state = P_CALLED;
         e->params = 2;
         p_postexpr(p, e);
 
     } else if (e->prec > p->l.prec && match(p, T_AND)) {
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         mlen_t offset = p->bcount;
-        encode(p, MOP_JFALSE, p->sp, 0, 0, 0);
-        encode(p, MOP_DROP, p->sp, 0, 0, -1);
+        encode(p, MU_OP_JFALSE, p->sp, 0, 0, 0);
+        encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
         muintq_t prec = e->prec; e->prec = p->m.prec;
         p_subexpr(p, e);
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         e->prec = prec;
         patch(p, offset, p->bcount - offset);
         e->state = P_DIRECT;
         p_postexpr(p, e);
 
     } else if (e->prec > p->l.prec && match(p, T_OR)) {
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         mlen_t offset = p->bcount;
-        encode(p, MOP_JTRUE, p->sp, 0, 0, -1);
+        encode(p, MU_OP_JTRUE, p->sp, 0, 0, -1);
         muintq_t prec = e->prec; e->prec = p->m.prec;
         p_subexpr(p, e);
-        encode_load(p, e, 0);
+        encload(p, e, 0);
         e->prec = prec;
         patch(p, offset, p->bcount - offset);
         e->state = P_DIRECT;
@@ -1113,11 +1131,11 @@ static void p_postexpr(struct mparse *p, struct mexpr *e) {
 }
 
 static void p_entry(struct mparse *p, struct mframe *f) {
-    struct mexpr e = {.prec = -1};
+    struct mexpr e = {.prec = -1, .insert = f->insert};
     f->key = false;
 
     if (lookahead(p, T_ANY_SYM, T_PAIR)) {
-        encode(p, MOP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
         e.state = P_DIRECT;
         f->key = true;
     } else if (!(f->unpack && next(p, T_LTABLE))) {
@@ -1133,21 +1151,21 @@ static void p_entry(struct mparse *p, struct mframe *f) {
 
     if (match(p, T_PAIR)) {
         if (f->unpack && f->expand) {
-            encode_load(p, &e, 1);
-            encode(p, MOP_IMM, p->sp+1, imm(p, 0), 0, +1);
-            encode(p, MOP_LOOKUP, p->sp-2, p->sp-3, p->sp-1, 0);
-            encode(p, MOP_INSERT, p->sp, p->sp-3, p->sp-1, -2);
+            encload(p, &e, 1);
+            encode(p, MU_OP_IMM, p->sp+1, imm(p, 0), 0, +1);
+            encode(p, MU_OP_LOOKUP, p->sp-2, p->sp-3, p->sp-1, 0);
+            encode(p, MU_OP_INSERT, p->sp, p->sp-3, p->sp-1, -2);
         } else if (f->unpack) {
-            encode_load(p, &e, 0);
-            encode(p, f->count == f->target-1 ? MOP_LOOKDN : MOP_LOOKUP,
+            encload(p, &e, 0);
+            encode(p, f->count == f->target-1 ? MU_OP_LOOKDN : MU_OP_LOOKUP,
                     p->sp, p->sp-1, p->sp,
                     f->count == f->target-1 ? -1 : 0);
         } else {
-            encode_load(p, &e, 0);
+            encload(p, &e, 0);
         }
 
         if (f->key && !next(p, T_EXPR)) {
-            encode(p, MOP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
+            encode(p, MU_OP_IMM, p->sp+1, imm(p, mu_inc(p->m.val)), 0, +1);
             e.state = P_SCOPED;
         } else if (!(f->unpack && next(p, T_LTABLE))) {
             p_subexpr(p, &e);
@@ -1156,27 +1174,27 @@ static void p_entry(struct mparse *p, struct mframe *f) {
         f->key = true;
     } else if (f->tabled) {
         if (f->unpack && f->expand) {
-            encode(p, MOP_IMM, p->sp+1, imm(p, MU_KEY_POP), 0, +1);
-            encode(p, MOP_LOOKUP, p->sp, 0, p->sp, 0);
-            encode(p, MOP_DUP, p->sp+1, p->sp-1-offset(&e), 0, +1);
-            encode(p, MOP_IMM, p->sp+1,
+            encode(p, MU_OP_IMM, p->sp+1, imm(p, MU_POP_KEY), 0, +1);
+            encode(p, MU_OP_LOOKUP, p->sp, 0, p->sp, 0);
+            encode(p, MU_OP_DUP, p->sp+1, p->sp-1-offset(&e), 0, +1);
+            encode(p, MU_OP_IMM, p->sp+1,
                     imm(p, mu_num_fromuint(f->index)), 0, +1);
-            encode(p, MOP_CALL, p->sp-2, 0x21, 0, -2);
+            encode(p, MU_OP_CALL, p->sp-2, 0x21, 0, -2);
         } else if (f->unpack) {
-            encode(p, MOP_IMM, p->sp+1,
+            encode(p, MU_OP_IMM, p->sp+1,
                     imm(p, mu_num_fromuint(f->index)), 0, +1);
-            encode(p, f->count == f->target-1 ? MOP_LOOKDN : MOP_LOOKUP,
+            encode(p, f->count == f->target-1 ? MU_OP_LOOKDN : MU_OP_LOOKUP,
                    p->sp, p->sp-1-offset(&e), p->sp, 0);
         }
     } else {
         if (f->unpack && next(p, T_LTABLE) && f->count < f->target-1) {
-            encode(p, MOP_MOVE, p->sp+1,
+            encode(p, MU_OP_MOVE, p->sp+1,
                    p->sp - (f->target-1 - f->count), 0, +1);
         }
     }
 
     if (f->unpack && match(p, T_LTABLE)) {
-        struct mframe nf = {.unpack = true};
+        struct mframe nf = {.unpack = true, .insert = f->insert};
         s_frame(p, &nf, false);
         nf.tabled = true;
         p_frame(p, &nf);
@@ -1185,41 +1203,41 @@ static void p_entry(struct mparse *p, struct mframe *f) {
         expect(p, T_RTABLE);
     } else if (f->unpack) {
         if (f->key) {
-            encode_store(p, &e, f->insert, 0);
+            encstore(p, &e, f->insert, 0);
             p->sp -= 1;
         } else if (f->tabled) {
             p->sp -= 1;
-            encode_store(p, &e, f->insert, -(offset(&e)+1));
+            encstore(p, &e, f->insert, -(offset(&e)+1));
         } else {
-            encode_store(p, &e, f->insert, f->target-1 - f->count);
+            encstore(p, &e, f->insert, f->target-1 - f->count);
         }
     } else {
-        encode_load(p, &e, 0);
+        encload(p, &e, 0);
 
         if (f->key) {
-            encode(p, MOP_INSERT, p->sp, p->sp-2, p->sp-1, -2);
+            encode(p, MU_OP_INSERT, p->sp, p->sp-2, p->sp-1, -2);
         } else if (f->tabled) {
-            encode(p, MOP_IMM, p->sp+1,
+            encode(p, MU_OP_IMM, p->sp+1,
                     imm(p, mu_num_fromuint(f->index)), 0, +1);
-            encode(p, MOP_INSERT, p->sp-1, p->sp-2, p->sp, -2);
+            encode(p, MU_OP_INSERT, p->sp-1, p->sp-2, p->sp, -2);
         } else if (f->count >= f->target) {
-            encode(p, MOP_DROP, p->sp, 0, 0, -1);
+            encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
         }
     }
 }
 
 static void p_frame(struct mparse *p, struct mframe *f) {
     if (!f->unpack && f->call) {
-        struct mexpr e = {.prec = -1};
+        struct mexpr e = {.prec = -1, .insert = f->insert};
         p_subexpr(p, &e);
-        encode(p, MOP_CALL, p->sp-(e.params == 0xf ? 1 : e.params),
+        encode(p, MU_OP_CALL, p->sp-(e.params == 0xf ? 1 : e.params),
                (e.params << 4) | (f->tabled ? 0xf : f->target), 0,
                +(f->tabled ? 1 : f->target)
                -(e.params == 0xf ? 1 : e.params)-1);
         return;
     } else if (!f->unpack && f->tabled && !f->call &&
                !(f->expand && f->target == 0)) {
-        encode(p, MOP_TBL, p->sp+1, f->count, 0, +1);
+        encode(p, MU_OP_TBL, p->sp+1, f->count, 0, +1);
     }
 
     f->count = 0;
@@ -1240,18 +1258,18 @@ static void p_frame(struct mparse *p, struct mframe *f) {
 
     if (f->expand) {
         if (f->unpack) {
-            struct mexpr e = {.prec = -1};
+            struct mexpr e = {.prec = -1, .insert = f->insert};
             p_subexpr(p, &e);
-            encode_store(p, &e, f->insert, 0);
+            encstore(p, &e, f->insert, 0);
             p->sp -= 1;
         } else if (f->count > 0) {
-            encode(p, MOP_MOVE, p->sp+1, p->sp, 0, +1);
-            encode(p, MOP_IMM, p->sp-1, imm(p, MU_KEY_CONCAT), 0, 0);
-            encode(p, MOP_LOOKUP, p->sp-1, 0, p->sp-1, 0);
+            encode(p, MU_OP_MOVE, p->sp+1, p->sp, 0, +1);
+            encode(p, MU_OP_IMM, p->sp-1, imm(p, MU_CONCAT_KEY), 0, 0);
+            encode(p, MU_OP_LOOKUP, p->sp-1, 0, p->sp-1, 0);
             p_expr(p);
-            encode(p, MOP_IMM, p->sp+1,
+            encode(p, MU_OP_IMM, p->sp+1,
                     imm(p, mu_num_fromuint(f->index)), 0, +1);
-            encode(p, MOP_CALL, p->sp-3, 0x31, 0, -3);
+            encode(p, MU_OP_CALL, p->sp-3, 0x31, 0, -3);
         } else {
             p_expr(p);
         }
@@ -1260,19 +1278,19 @@ static void p_frame(struct mparse *p, struct mframe *f) {
     if (f->unpack && !f->tabled) {
         p->sp -= f->count;
     } else if (!f->unpack && f->tabled && f->flatten) {
-        encode(p, MOP_MOVE, p->sp + f->target, p->sp, 0, +f->target);
+        encode(p, MU_OP_MOVE, p->sp + f->target, p->sp, 0, +f->target);
 
         for (mlen_t i = 0; i < f->target; i++) {
-            encode(p, MOP_IMM, p->sp-1 - (f->target-1-i),
+            encode(p, MU_OP_IMM, p->sp-1 - (f->target-1-i),
                    imm(p, mu_num_fromuint(i)), 0, 0);
-            encode(p, i == f->target-1 ? MOP_LOOKDN : MOP_LOOKUP,
+            encode(p, i == f->target-1 ? MU_OP_LOOKDN : MU_OP_LOOKUP,
                    p->sp-1 - (f->target-1-i), p->sp,
                    p->sp-1 - (f->target-1-i),
                    -(f->target-1 == i));
         }
     } else if (!f->unpack && !f->tabled) {
         while (f->target > f->count) {
-            encode(p, MOP_IMM, p->sp+1, imm(p, 0), 0, +1);
+            encode(p, MU_OP_IMM, p->sp+1, imm(p, 0), 0, +1);
             f->count++;
         }
     }
@@ -1290,22 +1308,21 @@ static void p_frame(struct mparse *p, struct mframe *f) {
 
 static void p_assign(struct mparse *p, bool insert) {
     struct mlex ll = lex_inc(p->l);
-    struct mframe fl = {.unpack = false};
+    struct mframe fl = {.unpack = false, .insert = insert};
     s_frame(p, &fl, true);
 
     if (match(p, T_ASSIGN)) {
-        struct mframe fr = {.unpack = false, .insert = insert};
+        struct mframe fr = {.unpack = false};
         s_frame(p, &fr, false);
 
-        if ((fr.count == 0 && !fr.tabled) ||
-            (fl.count == 0 && !fl.tabled)) {
-            mu_error_assignment(&p->l);
-        } else {
-            fr.tabled = fr.tabled || fl.tabled;
-            fr.target = fl.count;
-            fr.flatten = !fl.tabled;
-            p_frame(p, &fr);
-        }
+        mu_checkassign(
+                (fr.count != 0 || fr.tabled) &&
+                (fl.count != 0 || fl.tabled), &p->l);
+
+        fr.tabled = fr.tabled || fl.tabled;
+        fr.target = fl.count;
+        fr.flatten = !fl.tabled;
+        p_frame(p, &fr);
 
         struct mlex lr = p->l;
         p->l = ll;
@@ -1330,7 +1347,7 @@ static void p_return(struct mparse *p) {
     // Remove any leftover iterators
     muintq_t sp = p->sp;
     while (p->sp != 0) {
-        encode(p, MOP_DROP, p->sp, 0, 0, -1);
+        encode(p, MU_OP_DROP, p->sp, 0, 0, -1);
     }
 
     struct mframe f = {.unpack = false};
@@ -1339,13 +1356,13 @@ static void p_return(struct mparse *p) {
     if (f.call) {
         struct mexpr e = {.prec = -1};
         p_subexpr(p, &e);
-        encode(p, MOP_TCALL,
+        encode(p, MU_OP_TCALL,
                p->sp - (e.params == 0xf ? 1 : e.params),
                e.params, 0,
                -(e.params == 0xf ? 1 : e.params)-1);
     } else {
         p_frame(p, &f);
-        encode(p, MOP_RET,
+        encode(p, MU_OP_RET,
                p->sp - (f.tabled ? 0 : f.count-1),
                f.tabled ? 0xf : f.count, 0,
                -(f.tabled ? 1 : f.count));
@@ -1361,9 +1378,10 @@ static void p_stmt(struct mparse *p) {
     } else if (lookahead(p, T_FN, T_ANY_SYM | T_ANY_OP)) {
         expect(p, T_ANY_SYM | T_ANY_OP);
         mu_t sym = mu_inc(p->m.val);
+        scopecheck(p, sym, true);
         p_fn(p, true);
-        encode(p, MOP_IMM, p->sp+1, imm(p, sym), 0, +1);
-        encode(p, MOP_INSERT, p->sp-1, 0, p->sp, -2);
+        encode(p, MU_OP_IMM, p->sp+1, imm(p, sym), 0, +1);
+        encode(p, MU_OP_INSERT, p->sp-1, 0, p->sp, -2);
 
     } else if (match(p, T_IF)) {
         p_if(p, false);
@@ -1375,21 +1393,19 @@ static void p_stmt(struct mparse *p) {
         p_for(p);
 
     } else if (match(p, T_BREAK)) {
-        if (p->bchain == (mlen_t)-1) {
-            mu_error_parse(&p->l, mu_str_format("break outside of loop"));
-        }
+        mu_checkparse(p->bchain != (mlen_t)-1,
+                &p->l, "break outside of loop");
 
         mlen_t offset = p->bcount;
-        encode(p, MOP_JUMP, 0, p->bchain ? p->bchain-p->bcount : 0, 0, 0);
+        encode(p, MU_OP_JUMP, 0, p->bchain ? p->bchain-p->bcount : 0, 0, 0);
         p->bchain = offset;
 
     } else if (match(p, T_CONTINUE)) {
-        if (p->cchain == (mlen_t)-1) {
-            mu_error_parse(&p->l, mu_str_format("continue outside of loop"));
-        }
+        mu_checkparse(p->bchain != (mlen_t)-1,
+                &p->l, "continue outside of loop");
 
         mlen_t offset = p->bcount;
-        encode(p, MOP_JUMP, 0, p->cchain ? p->cchain-p->bcount : 0, 0, 0);
+        encode(p, MU_OP_JUMP, 0, p->cchain ? p->cchain-p->bcount : 0, 0, 0);
         p->cchain = offset;
 
     } else if (match(p, T_ARROW | T_RETURN)) {
@@ -1425,20 +1441,38 @@ static void p_block(struct mparse *p, bool root) {
 
 
 //// Parsing functions ////
-mu_t mu_parse(const char *s, muint_t n) {
-    const mbyte_t *pos = (const mbyte_t *)s;
-    const mbyte_t *end = (const mbyte_t *)pos + n;
+MU_DEF_STR(mu_cdata_key_def, "cdata")
+static mu_t (*const mu_attr_name[8])(void) = {
+    [MTNIL]  = mu_kw_nil_def,
+    [MTNUM]  = mu_num_key_def,
+    [MTSTR]  = mu_str_key_def,
+    [MTTBL]  = mu_tbl_key_def,
+    [MTRTBL] = mu_tbl_key_def,
+    [MTFN]   = mu_kw_fn_def,
+    [MTBUF]  = mu_cdata_key_def,
+    [MTDBUF] = mu_cdata_key_def,
+};
 
-    mu_t v = mu_nparse(&pos, end);
-
-    if (pos < end) {
-        mu_error_expression(*pos);
+mu_t mu_repr(mu_t m, mu_t depth) {
+    mu_t r;
+    switch (mu_gettype(m)) {
+        case MTNIL:  r = MU_KW_NIL; break;
+        case MTNUM:  r = mu_num_repr(m); break;
+        case MTSTR:  r = mu_str_repr(m); break;
+        case MTTBL:
+        case MTRTBL: r = mu_tbl_repr(m, depth); break;
+        default:
+            r = mu_str_format("<%m 0x%wx>",
+                    mu_attr_name[mu_gettype(m)](),
+                    (muint_t)m & ~7);
+            break;
     }
 
-    return v;
+    mu_dec(m);
+    return r;
 }
 
-mu_t mu_nparse(const mbyte_t **ppos, const mbyte_t *end) {
+mu_t mu_parsen(const mbyte_t **ppos, const mbyte_t *end) {
     const mbyte_t *pos = *ppos;
     mu_t val;
     bool sym = false;
@@ -1457,9 +1491,9 @@ mu_t mu_nparse(const mbyte_t **ppos, const mbyte_t *end) {
 
     switch (class[*pos]) {
         case L_OP:
-        case L_NUM:     val = mu_num_parse(&pos, end); break;
-        case L_STR:     val = mu_str_parse(&pos, end); break;
-        case L_LTABLE:  val = mu_tbl_parse(&pos, end); break;
+        case L_NUM:     val = mu_num_parsen(&pos, end); break;
+        case L_STR:     val = mu_str_parsen(&pos, end); break;
+        case L_LTABLE:  val = mu_tbl_parsen(&pos, end); break;
 
         case L_KW: {
             const mbyte_t *start = pos++;
@@ -1471,7 +1505,7 @@ mu_t mu_nparse(const mbyte_t **ppos, const mbyte_t *end) {
             sym = true;
         } break;
 
-        default:        mu_error_expression(*pos);
+        default:        return 0;
     }
 
     while (pos < end) {
@@ -1486,23 +1520,56 @@ mu_t mu_nparse(const mbyte_t **ppos, const mbyte_t *end) {
         }
     }
 
-    if (sym && *pos != ':') {
-        mu_error_expression(mu_str_getdata(val)[0]);
+    if (!(!sym || *pos == ':')) {
+        mu_dec(val);
+        return 0;
     }
 
     *ppos = pos;
     return val;
 }
 
-mu_t mu_compile(const char *s, muint_t n) {
+mu_t mu_parse(const char *s, muint_t n) {
+    const mbyte_t *pos = (const mbyte_t *)s;
+    const mbyte_t *end = (const mbyte_t *)pos + n;
+
+    mu_t v = mu_parsen(&pos, end);
+
+    if (pos != end) {
+        mu_dec(v);
+        return 0;
+    }
+
+    return v;
+}
+
+mu_t mu_compilen(const mbyte_t **pos, const mbyte_t *end, mu_t scope) {
     struct mparse p = {
+        .scope = mu_tbl_createtail(0, scope),
         .bcode = mu_buf_create(0),
         .imms = mu_tbl_create(0),
         .bchain = -1,
         .cchain = -1,
-
         .regs = 1,
-        .scope = MU_MINALLOC / sizeof(muint_t),
+    };
+
+    lex_init(&p.l, *pos, end);
+    p_block(&p, true);
+    *pos = p.l.pos;
+
+    encode(&p, MU_OP_RET, 0, 0, 0, 0);
+    lex_dec(p.l);
+    return compile(&p, false);
+}
+
+mu_t mu_compile(const char *s, muint_t n, mu_t scope) {
+    struct mparse p = {
+        .scope = mu_tbl_createtail(0, scope),
+        .bcode = mu_buf_create(0),
+        .imms = mu_tbl_create(0),
+        .bchain = -1,
+        .cchain = -1,
+        .regs = 1,
     };
 
     lex_init(&p.l, (const mbyte_t *)s, (const mbyte_t *)s+n);
@@ -1511,27 +1578,8 @@ mu_t mu_compile(const char *s, muint_t n) {
         unexpected(&p);
     }
 
-    encode(&p, MOP_RET, 0, 0, 0, 0);
+    encode(&p, MU_OP_RET, 0, 0, 0, 0);
     lex_dec(p.l);
-    return compile(&p);
+    return compile(&p, false);
 }
 
-mu_t mu_ncompile(const mbyte_t **pos, const mbyte_t *end) {
-    struct mparse p = {
-        .bcode = mu_buf_create(0),
-        .imms = mu_tbl_create(0),
-        .bchain = -1,
-        .cchain = -1,
-
-        .regs = 1,
-        .scope = MU_MINALLOC / sizeof(muint_t),
-    };
-
-    lex_init(&p.l, *pos, end);
-    p_block(&p, true);
-    *pos = p.l.pos;
-
-    encode(&p, MOP_RET, 0, 0, 0, 0);
-    lex_dec(p.l);
-    return compile(&p);
-}

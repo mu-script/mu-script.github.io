@@ -1,16 +1,23 @@
-#include "str.h"
-
-#include "buf.h"
-#include "num.h"
-#include "tbl.h"
-#include "fn.h"
-#include "parse.h"
+/*
+ * Mu strs, the representation of strings
+ *
+ * Copyright (c) 2016 Christopher Haster
+ * Distributed under the MIT license in mu.h
+ */
+#include "mu_str.h"
+#include "mu.h"
 
 
 #define MU_EMPTY_STR mu_empty_str()
 #define MU_SPACE_STR mu_space_str()
-MU_GEN_STR(mu_empty_str, "")
-MU_GEN_STR(mu_space_str, " ")
+MU_DEF_STR(mu_empty_str, "")
+MU_DEF_STR(mu_space_str, " ")
+
+
+// String access, useful for debugging
+mu_inline struct mstr *mstr(mu_t s) {
+    return (struct mstr *)((muint_t)s & ~7);
+}
 
 
 // String interning
@@ -98,8 +105,8 @@ mu_t mu_str_intern(mu_t b, muint_t n) {
 
     mint_t i = mu_str_table_find(mu_buf_getdata(b), n);
     if (i >= 0) {
-        mu_buf_dec(b);
-        return mu_str_inc(mu_str_table[i]);
+        mu_dec(b);
+        return mu_inc(mu_str_table[i]);
     }
 
     if (mu_buf_getdtor(b)) {
@@ -112,17 +119,15 @@ mu_t mu_str_intern(mu_t b, muint_t n) {
 
     mu_t s = (mu_t)((muint_t)b - MTBUF + MTSTR);
     mu_str_table_insert(~i, s);
-    return mu_str_inc(s);
+    return mu_inc(s);
 }
 
-mu_t mu_str_fromdata(const mbyte_t *s, muint_t n) {
-    if (n > (mlen_t)-1) {
-        mu_errorf("exceeded max length in string");
-    }
+mu_t mu_str_fromdata(const void *s, muint_t n) {
+    mu_checklen(n <= (mlen_t)-1, "string");
 
     mint_t i = mu_str_table_find(s, n);
     if (i >= 0) {
-        return mu_str_inc(mu_str_table[i]);
+        return mu_inc(mu_str_table[i]);
     }
 
     // create new string and insert
@@ -131,7 +136,7 @@ mu_t mu_str_fromdata(const mbyte_t *s, muint_t n) {
 
     mu_t ns = (mu_t)((muint_t)b - MTBUF + MTSTR);
     mu_str_table_insert(~i, ns);
-    return mu_str_inc(ns);
+    return mu_inc(ns);
 }
 
 void mu_str_destroy(mu_t s) {
@@ -139,7 +144,8 @@ void mu_str_destroy(mu_t s) {
     mu_assert(i >= 0);
     mu_str_table_remove(i);
 
-    mu_ref_dealloc(s, mu_offsetof(struct mstr, data) + mu_str_getlen(s));
+    mu_dealloc((struct mstr *)((muint_t)s - MTSTR),
+            mu_offsetof(struct mstr, data) + mu_str_getlen(s));
 }
 
 
@@ -154,14 +160,23 @@ mu_t mu_str_init(const struct mstr *s) {
     return m;
 }
 
-mu_t mu_str_fromiter(mu_t iter) {
-    return mu_fn_call(MU_JOIN, 0x21, iter, MU_EMPTY_STR);
+mu_t mu_str_frommu(mu_t m) {
+    switch (mu_gettype(m)) {
+        case MTNIL:
+            return MU_EMPTY_STR;
+
+        case MTSTR:
+            return m;
+
+        default:
+            return mu_str_format("%nr", m, 0);
+    }
 }
 
 mu_t mu_str_vformat(const char *f, va_list args) {
     mu_t b = mu_buf_create(0);
     muint_t n = 0;
-    mu_buf_vformat(&b, &n, f, args);
+    mu_buf_vpushf(&b, &n, f, args);
     return mu_str_intern(b, n);
 }
 
@@ -187,6 +202,7 @@ mint_t mu_str_cmp(mu_t a, mu_t b) {
     mint_t cmp = memcmp(mu_str_getdata(a), mu_str_getdata(b),
                         alen < blen ? alen : blen);
 
+    mu_dec(b);
     return cmp != 0 ? cmp : alen - blen;
 }
 
@@ -200,7 +216,7 @@ bool mu_str_next(mu_t s, muint_t *ip, mu_t *cp) {
         return false;
     }
 
-    if (cp) *cp = mu_str_fromdata(&mu_str_getdata(s)[i], 1);
+    if (cp) *cp = mu_str_fromdata((const mbyte_t*)mu_str_getdata(s) + i, 1);
     *ip = i + 1;
     return true;
 }
@@ -210,7 +226,7 @@ static mcnt_t mu_str_step(mu_t scope, mu_t *frame) {
     muint_t i = mu_num_getuint(mu_tbl_lookup(scope, mu_num_fromuint(1)));
 
     bool next = mu_str_next(s, &i, &frame[0]);
-    mu_str_dec(s);
+    mu_dec(s);
     mu_tbl_insert(scope, mu_num_fromuint(1), mu_num_fromuint(i));
     return next ? 1 : 0;
 }
@@ -218,7 +234,7 @@ static mcnt_t mu_str_step(mu_t scope, mu_t *frame) {
 mu_t mu_str_iter(mu_t s) {
     mu_assert(mu_isstr(s));
     return mu_fn_fromsbfn(0x00, mu_str_step,
-            mu_tbl_fromlist((mu_t[]){s, mu_num_fromuint(0)}, 2));
+            mu_tbl_fromlist((mu_t[]){mu_inc(s), mu_num_fromuint(0)}, 2));
 }
 
 
@@ -232,8 +248,7 @@ mu_t mu_str_concat(mu_t a, mu_t b) {
     memcpy((mbyte_t *)mu_buf_getdata(d), mu_str_getdata(a), an);
     memcpy((mbyte_t *)mu_buf_getdata(d)+an, mu_str_getdata(b), bn);
 
-    mu_str_dec(a);
-    mu_str_dec(b);
+    mu_dec(b);
     return mu_str_intern(d, an + bn);
 }
 
@@ -254,97 +269,124 @@ mu_t mu_str_subset(mu_t s, mint_t lower, mint_t upper) {
         return MU_EMPTY_STR;
     }
 
-    mu_t d = mu_str_fromdata(mu_str_getdata(s) + lower, upper - lower);
-    mu_str_dec(s);
-    return d;
+    return mu_str_fromdata(
+            (const mbyte_t *)mu_str_getdata(s) + lower,
+            upper - lower);
 }
 
 
 // String representation
-mu_t mu_str_parse(const mbyte_t **ppos, const mbyte_t *end) {
+static muint_t mu_str_fromascii(mbyte_t c) {
+    c |= ('a' ^ 'A');
+    return
+        (c >= '0' && c <= '9') ? c - '0':
+        (c >= 'a' && c <= 'F') ? c - 'A' + 10 : -1;
+}
+
+mu_t mu_str_parsen(const mbyte_t **ppos, const mbyte_t *end) {
     const mbyte_t *pos = *ppos;
     mbyte_t quote = *pos++;
     mu_t b = mu_buf_create(0);
     muint_t n = 0;
 
+    if (quote != '\'' && quote != '"') {
+        mu_dec(b);
+        return 0;
+    }
+
     while (pos < end-1 && *pos != quote) {
         if (*pos == '\\') {
             if (pos[1] == 'b' && pos < end-9 &&
-                (mu_fromascii(pos[2]) < 2 &&
-                 mu_fromascii(pos[3]) < 2 &&
-                 mu_fromascii(pos[4]) < 2 &&
-                 mu_fromascii(pos[5]) < 2 &&
-                 mu_fromascii(pos[6]) < 2 &&
-                 mu_fromascii(pos[7]) < 2 &&
-                 mu_fromascii(pos[8]) < 2 &&
-                 mu_fromascii(pos[9]) < 2)) {
-                mu_buf_push(&b, &n,
-                        mu_fromascii(pos[2])*2*2*2*2*2*2*2 +
-                        mu_fromascii(pos[3])*2*2*2*2*2*2 +
-                        mu_fromascii(pos[4])*2*2*2*2*2 +
-                        mu_fromascii(pos[5])*2*2*2*2 +
-                        mu_fromascii(pos[6])*2*2*2 +
-                        mu_fromascii(pos[7])*2*2 +
-                        mu_fromascii(pos[8])*2 +
-                        mu_fromascii(pos[9]));
+                (mu_str_fromascii(pos[2]) < 2 &&
+                 mu_str_fromascii(pos[3]) < 2 &&
+                 mu_str_fromascii(pos[4]) < 2 &&
+                 mu_str_fromascii(pos[5]) < 2 &&
+                 mu_str_fromascii(pos[6]) < 2 &&
+                 mu_str_fromascii(pos[7]) < 2 &&
+                 mu_str_fromascii(pos[8]) < 2 &&
+                 mu_str_fromascii(pos[9]) < 2)) {
+                mu_buf_pushchr(&b, &n,
+                        mu_str_fromascii(pos[2])*2*2*2*2*2*2*2 +
+                        mu_str_fromascii(pos[3])*2*2*2*2*2*2 +
+                        mu_str_fromascii(pos[4])*2*2*2*2*2 +
+                        mu_str_fromascii(pos[5])*2*2*2*2 +
+                        mu_str_fromascii(pos[6])*2*2*2 +
+                        mu_str_fromascii(pos[7])*2*2 +
+                        mu_str_fromascii(pos[8])*2 +
+                        mu_str_fromascii(pos[9]));
                 pos += 10;
             } else if (pos[1] == 'o' && pos < end-4 &&
-                (mu_fromascii(pos[2]) < 8 &&
-                 mu_fromascii(pos[3]) < 8 &&
-                 mu_fromascii(pos[4]) < 8)) {
-                mu_buf_push(&b, &n,
-                        mu_fromascii(pos[2])*8*8 +
-                        mu_fromascii(pos[3])*8 +
-                        mu_fromascii(pos[4]));
+                (mu_str_fromascii(pos[2]) < 8 &&
+                 mu_str_fromascii(pos[3]) < 8 &&
+                 mu_str_fromascii(pos[4]) < 8)) {
+                mu_buf_pushchr(&b, &n,
+                        mu_str_fromascii(pos[2])*8*8 +
+                        mu_str_fromascii(pos[3])*8 +
+                        mu_str_fromascii(pos[4]));
                 pos += 5;
             } else if (pos[1] == 'd' && pos < end-4 &&
-                       (mu_fromascii(pos[2]) < 10 &&
-                        mu_fromascii(pos[3]) < 10 &&
-                        mu_fromascii(pos[4]) < 10)) {
-                mu_buf_push(&b, &n,
-                        mu_fromascii(pos[2])*10*10 +
-                        mu_fromascii(pos[3])*10 +
-                        mu_fromascii(pos[4]));
+                       (mu_str_fromascii(pos[2]) < 10 &&
+                        mu_str_fromascii(pos[3]) < 10 &&
+                        mu_str_fromascii(pos[4]) < 10)) {
+                mu_buf_pushchr(&b, &n,
+                        mu_str_fromascii(pos[2])*10*10 +
+                        mu_str_fromascii(pos[3])*10 +
+                        mu_str_fromascii(pos[4]));
                 pos += 5;
             } else if (pos[1] == 'x' && pos < end-3 &&
-                       (mu_fromascii(pos[2]) < 16 &&
-                        mu_fromascii(pos[3]) < 16)) {
-                mu_buf_push(&b, &n,
-                        mu_fromascii(pos[2])*16 +
-                        mu_fromascii(pos[3]));
+                       (mu_str_fromascii(pos[2]) < 16 &&
+                        mu_str_fromascii(pos[3]) < 16)) {
+                mu_buf_pushchr(&b, &n,
+                        mu_str_fromascii(pos[2])*16 +
+                        mu_str_fromascii(pos[3]));
                 pos += 4;
             } else if (pos[1] == '\\') {
-                mu_buf_push(&b, &n, '\\'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\\'); pos += 2;
             } else if (pos[1] == '\'') {
-                mu_buf_push(&b, &n, '\''); pos += 2;
+                mu_buf_pushchr(&b, &n, '\''); pos += 2;
             } else if (pos[1] == '\"') {
-                mu_buf_push(&b, &n, '\"'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\"'); pos += 2;
             } else if (pos[1] == 'f') {
-                mu_buf_push(&b, &n, '\f'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\f'); pos += 2;
             } else if (pos[1] == 'n') {
-                mu_buf_push(&b, &n, '\n'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\n'); pos += 2;
             } else if (pos[1] == 'r') {
-                mu_buf_push(&b, &n, '\r'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\r'); pos += 2;
             } else if (pos[1] == 't') {
-                mu_buf_push(&b, &n, '\t'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\t'); pos += 2;
             } else if (pos[1] == 'v') {
-                mu_buf_push(&b, &n, '\v'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\v'); pos += 2;
             } else if (pos[1] == '0') {
-                mu_buf_push(&b, &n, '\0'); pos += 2;
+                mu_buf_pushchr(&b, &n, '\0'); pos += 2;
             } else {
-                mu_buf_push(&b, &n, '\\'); pos += 1;
+                mu_buf_pushchr(&b, &n, '\\'); pos += 1;
             }
         } else {
-            mu_buf_push(&b, &n, *pos++);
+            mu_buf_pushchr(&b, &n, *pos++);
         }
     }
 
     if (quote != *pos++) {
-        mu_errorf("unterminated string literal");
+        mu_dec(b);
+        return 0;
     }
 
     *ppos = pos;
     return mu_str_intern(b, n);
+}
+
+mu_t mu_str_parse(const char *s, muint_t n) {
+    const mbyte_t *pos = (const mbyte_t *)s;
+    const mbyte_t *end = (const mbyte_t *)pos + n;
+
+    mu_t m = mu_str_parsen(&pos, end);
+
+    if (pos != end) {
+        mu_dec(m);
+        return 0;
+    }
+
+    return m;
 }
 
 // Returns a string representation of a string
@@ -355,114 +397,47 @@ mu_t mu_str_repr(mu_t m) {
     mu_t b = mu_buf_create(2 + mu_str_getlen(m));
     muint_t n = 0;
 
-    mu_buf_push(&b, &n, '\'');
+    mu_buf_pushchr(&b, &n, '\'');
 
     for (; pos < end; pos++) {
         if (*pos < ' ' || *pos > '~' ||
             *pos == '\\' || *pos == '\'') {
-            if (*pos == '\\')      mu_buf_format(&b, &n, "\\\\");
-            else if (*pos == '\'') mu_buf_format(&b, &n, "\\'");
-            else if (*pos == '\f') mu_buf_format(&b, &n, "\\f");
-            else if (*pos == '\n') mu_buf_format(&b, &n, "\\n");
-            else if (*pos == '\r') mu_buf_format(&b, &n, "\\r");
-            else if (*pos == '\t') mu_buf_format(&b, &n, "\\t");
-            else if (*pos == '\v') mu_buf_format(&b, &n, "\\v");
-            else if (*pos == '\0') mu_buf_format(&b, &n, "\\0");
-            else                   mu_buf_format(&b, &n, "\\x%bx", *pos);
+            if (*pos == '\\')      mu_buf_pushf(&b, &n, "\\\\");
+            else if (*pos == '\'') mu_buf_pushf(&b, &n, "\\'");
+            else if (*pos == '\f') mu_buf_pushf(&b, &n, "\\f");
+            else if (*pos == '\n') mu_buf_pushf(&b, &n, "\\n");
+            else if (*pos == '\r') mu_buf_pushf(&b, &n, "\\r");
+            else if (*pos == '\t') mu_buf_pushf(&b, &n, "\\t");
+            else if (*pos == '\v') mu_buf_pushf(&b, &n, "\\v");
+            else if (*pos == '\0') mu_buf_pushf(&b, &n, "\\0");
+            else                   mu_buf_pushf(&b, &n, "\\x%bx", *pos);
         } else {
-            mu_buf_push(&b, &n, *pos);
+            mu_buf_pushchr(&b, &n, *pos);
         }
     }
 
-    mu_str_dec(m);
-    mu_buf_push(&b, &n, '\'');
+    mu_buf_pushchr(&b, &n, '\'');
     return mu_str_intern(b, n);
-}
-
-static mu_t mu_str_base(mu_t m, char b,
-        muint_t size, muint_t mask, muint_t shift) {
-    const mbyte_t *s = mu_str_getdata(m);
-    mlen_t len = mu_str_getlen(m);
-
-    mu_t buf = mu_buf_create(2 + (2+size)*len);
-    mbyte_t *d = mu_buf_getdata(buf);
-    d[0] = '\'';
-
-    for (muint_t i = 0; i < len; i++) {
-        mbyte_t c = s[i];
-        d[1 + (2+size)*i+0] = '\\';
-        d[1 + (2+size)*i+1] = b;
-
-        for (muint_t j = 0; j < size; j++) {
-            d[1 + (2+size)*i+2 + (size-1-j)] = mu_toascii(c & mask);
-            c >>= shift;
-        }
-    }
-
-    d[1 + (2+size)*len] = '\'';
-    mu_str_dec(m);
-    return mu_str_intern(buf, 2 + (2+size)*len);
-}
-
-mu_t mu_str_bin(mu_t s) {
-    mu_assert(mu_isstr(s));
-    return mu_str_base(s, 'b', 8,   1, 1);
-}
-
-mu_t mu_str_oct(mu_t s) {
-    mu_assert(mu_isstr(s));
-    return mu_str_base(s, 'o', 3,   7, 3);
-}
-
-mu_t mu_str_hex(mu_t s) {
-    mu_assert(mu_isstr(s));
-    return mu_str_base(s, 'x', 2, 0xf, 4);
 }
 
 
 // String related functions in Mu
-static mcnt_t mu_bfn_str(mu_t *frame) {
-    mu_t m = frame[0];
-
-    switch (mu_gettype(m)) {
-        case MTNIL:
-            frame[0] = MU_EMPTY_STR;
-            return 1;
-
-        case MTNUM:
-            if (m == mu_num_fromuint((mbyte_t)mu_num_getuint(m))) {
-                frame[0] = mu_str_fromdata((mbyte_t[]){mu_num_getuint(m)}, 1);
-                return 1;
-            }
-            break;
-
-        case MTSTR:
-            frame[0] = frame[0];
-            return 1;
-
-        case MTTBL:
-        case MTFN:
-            frame[0] = m;
-            mu_fn_fcall(MU_ITER, 0x11, frame);
-            frame[0] = mu_str_fromiter(frame[0]);
-            return 1;
-
-        default:
-            break;
-    }
-
-    mu_error_cast(MU_KEY_STR, m);
+static mcnt_t mu_str_bfn(mu_t *frame) {
+    mu_t m = mu_str_frommu(mu_inc(frame[0]));
+    mu_checkargs(m, MU_STR_KEY, 0x1, frame);
+    mu_dec(frame[0]);
+    frame[0] = m;
+    return 1;
 }
 
-MU_GEN_STR(mu_gen_key_str, "str")
-MU_GEN_BFN(mu_gen_str, 0x1, mu_bfn_str)
+MU_DEF_STR(mu_str_key_def, "str")
+MU_DEF_BFN(mu_str_def, 0x1, mu_str_bfn)
 
-static mcnt_t mu_bfn_find(mu_t *frame) {
+static mcnt_t mu_find_bfn(mu_t *frame) {
     mu_t s = frame[0];
     mu_t m = frame[1];
-    if (!mu_isstr(s) || !mu_isstr(m)) {
-        mu_error_arg(MU_KEY_FIND, 0x2, frame);
-    }
+    mu_checkargs(mu_isstr(s) && mu_isstr(m),
+            MU_FIND_KEY, 0x2, frame);
 
     const mbyte_t *sb = mu_str_getdata(s);
     mlen_t slen = mu_str_getlen(s);
@@ -471,29 +446,28 @@ static mcnt_t mu_bfn_find(mu_t *frame) {
 
     for (muint_t i = 0; i+mlen <= slen; i++) {
         if (memcmp(&sb[i], mb, mlen) == 0) {
-            mu_str_dec(m);
-            mu_str_dec(s);
+            mu_dec(m);
+            mu_dec(s);
             frame[0] = mu_num_fromuint(i);
             frame[1] = mu_num_fromuint(i + mlen);
             return 2;
         }
     }
 
-    mu_str_dec(s);
-    mu_str_dec(m);
+    mu_dec(s);
+    mu_dec(m);
     return 0;
 }
 
-MU_GEN_STR(mu_gen_key_find, "find")
-MU_GEN_BFN(mu_gen_find, 0x2, mu_bfn_find)
+MU_DEF_STR(mu_find_key_def, "find")
+MU_DEF_BFN(mu_find_def, 0x2, mu_find_bfn)
 
-static mcnt_t mu_bfn_replace(mu_t *frame) {
+static mcnt_t mu_replace_bfn(mu_t *frame) {
     mu_t s = frame[0];
     mu_t m = frame[1];
     mu_t r = frame[2];
-    if (!mu_isstr(s) || !mu_isstr(m) || !mu_isstr(r)) {
-        mu_error_arg(MU_KEY_REPLACE, 0x3, frame);
-    }
+    mu_checkargs(mu_isstr(s) && mu_isstr(m) && mu_isstr(r),
+            MU_REPLACE, 0x3, frame);
 
     const mbyte_t *sb = mu_str_getdata(s);
     mlen_t slen = mu_str_getlen(s);
@@ -508,27 +482,27 @@ static mcnt_t mu_bfn_replace(mu_t *frame) {
         bool match = memcmp(&sb[i], mb, mlen) == 0;
 
         if (match) {
-            mu_buf_concat(&d, &n, mu_str_inc(r));
+            mu_buf_pushmu(&d, &n, mu_inc(r));
             i += mlen;
         }
 
         if (!match || mlen == 0) {
-            mu_buf_push(&d, &n, sb[i]);
+            mu_buf_pushchr(&d, &n, sb[i]);
             i += 1;
         }
     }
 
-    mu_buf_append(&d, &n, &sb[i], slen-i);
+    mu_buf_pushdata(&d, &n, &sb[i], slen-i);
 
-    mu_str_dec(s);
-    mu_str_dec(m);
-    mu_str_dec(r);
+    mu_dec(s);
+    mu_dec(m);
+    mu_dec(r);
     frame[0] = mu_str_intern(d, n);
     return 1;
 }
 
-MU_GEN_STR(mu_gen_key_replace, "replace")
-MU_GEN_BFN(mu_gen_replace, 0x3, mu_bfn_replace)
+MU_DEF_STR(mu_replace_key_def, "replace")
+MU_DEF_BFN(mu_replace_def, 0x3, mu_replace_bfn)
 
 
 static mcnt_t mu_str_split_step(mu_t scope, mu_t *frame) {
@@ -538,7 +512,7 @@ static mcnt_t mu_str_split_step(mu_t scope, mu_t *frame) {
     muint_t i = mu_num_getuint(mu_tbl_lookup(scope, mu_num_fromuint(2)));
 
     if (i > alen) {
-        mu_str_dec(a);
+        mu_dec(a);
         return 0;
     }
 
@@ -555,20 +529,19 @@ static mcnt_t mu_str_split_step(mu_t scope, mu_t *frame) {
 
     frame[0] = mu_str_fromdata(ab+i, j-i);
     mu_tbl_insert(scope, mu_num_fromuint(2), mu_num_fromuint(j+slen));
-    mu_str_dec(a);
-    mu_str_dec(s);
+    mu_dec(a);
+    mu_dec(s);
     return 1;
 }
 
-static mcnt_t mu_bfn_split(mu_t *frame) {
+static mcnt_t mu_split_bfn(mu_t *frame) {
     mu_t s     = frame[0];
-    mu_t delim = frame[1] ? frame[1] : MU_SPACE_STR;
-    if (!mu_isstr(s) || !mu_isstr(delim)) {
-        mu_error_arg(MU_KEY_SPLIT, 0x2, frame);
-    }
+    mu_t delim = frame[1] ? frame[1] : MU_EMPTY_STR;
+    mu_checkargs(mu_isstr(s) && mu_isstr(delim), MU_SPLIT_KEY, 0x2, frame);
 
     if (mu_str_getlen(delim) == 0) {
         frame[0] = mu_str_iter(s);
+        mu_dec(s);
         return 1;
     }
 
@@ -577,15 +550,13 @@ static mcnt_t mu_bfn_split(mu_t *frame) {
     return 1;
 }
 
-MU_GEN_STR(mu_gen_key_split, "split")
-MU_GEN_BFN(mu_gen_split, 0x2, mu_bfn_split)
+MU_DEF_STR(mu_split_key_def, "split")
+MU_DEF_BFN(mu_split_def, 0x2, mu_split_bfn)
 
-static mcnt_t mu_bfn_join(mu_t *frame) {
+static mcnt_t mu_join_bfn(mu_t *frame) {
     mu_t iter  = frame[0];
-    mu_t delim = frame[1] ? frame[1] : MU_SPACE_STR;
-    if (!mu_isstr(delim)) {
-        mu_error_arg(MU_KEY_JOIN, 0x2, frame);
-    }
+    mu_t delim = frame[1] ? frame[1] : MU_EMPTY_STR;
+    mu_checkargs(mu_isstr(delim), MU_JOIN_KEY, 0x2, frame);
 
     mu_t b = mu_buf_create(0);
     muint_t n = 0;
@@ -601,30 +572,29 @@ static mcnt_t mu_bfn_join(mu_t *frame) {
         if (first) {
             first = false;
         } else {
-            mu_buf_concat(&b, &n, mu_str_inc(delim));
+            mu_buf_pushmu(&b, &n, mu_inc(delim));
         }
 
-        mu_buf_concat(&b, &n, frame[0]);
+        mu_buf_pushmu(&b, &n, frame[0]);
     }
 
-    mu_fn_dec(iter);
-    mu_str_dec(delim);
+    mu_dec(iter);
+    mu_dec(delim);
     frame[0] = mu_str_intern(b, n);
     return 1;
 }
 
-MU_GEN_STR(mu_gen_key_join, "join")
-MU_GEN_BFN(mu_gen_join, 0x2, mu_bfn_join)
+MU_DEF_STR(mu_join_key_def, "join")
+MU_DEF_BFN(mu_join_def, 0x2, mu_join_bfn)
 
-static mcnt_t mu_bfn_pad(mu_t *frame) {
+static mcnt_t mu_pad_bfn(mu_t *frame) {
     mu_t s    = frame[0];
     mu_t mlen = frame[1];
     mu_t pad  = frame[2] ? frame[2] : MU_SPACE_STR;
-    if (!mu_isstr(s) ||
-        !mu_isnum(mlen) ||
-        (!mu_isstr(pad) || mu_str_getlen(pad) == 0)) {
-        mu_error_arg(MU_KEY_PAD, 0x3, frame);
-    }
+    mu_checkargs(
+            mu_isstr(s) && mu_isnum(mlen) &&
+            mu_isstr(pad) && mu_str_getlen(pad) > 0,
+            MU_PAD_KEY, 0x3, frame);
 
     bool left;
     muint_t len;
@@ -638,7 +608,7 @@ static mcnt_t mu_bfn_pad(mu_t *frame) {
     }
 
     if (mu_str_getlen(s) >= len) {
-        mu_str_dec(pad);
+        mu_dec(pad);
         return 1;
     }
 
@@ -647,15 +617,15 @@ static mcnt_t mu_bfn_pad(mu_t *frame) {
     muint_t count = (len - mu_str_getlen(s)) / mu_str_getlen(pad);
 
     if (left) {
-        mu_buf_concat(&d, &n, s);
+        mu_buf_pushmu(&d, &n, s);
     }
 
     for (muint_t i = 0; i < count; i++) {
-        mu_buf_concat(&d, &n, mu_str_inc(pad));
+        mu_buf_pushmu(&d, &n, mu_inc(pad));
     }
 
     if (!left) {
-        mu_buf_concat(&d, &n, s);
+        mu_buf_pushmu(&d, &n, s);
     }
 
     mu_dec(pad);
@@ -663,10 +633,10 @@ static mcnt_t mu_bfn_pad(mu_t *frame) {
     return 1;
 }
 
-MU_GEN_STR(mu_gen_key_pad, "pad")
-MU_GEN_BFN(mu_gen_pad, 0x3, mu_bfn_pad)
+MU_DEF_STR(mu_pad_key_def, "pad")
+MU_DEF_BFN(mu_pad_def, 0x3, mu_pad_bfn)
 
-static mcnt_t mu_bfn_strip(mu_t *frame) {
+static mcnt_t mu_strip_bfn(mu_t *frame) {
     if (mu_isstr(frame[1])) {
         mu_dec(frame[2]);
         frame[2] = frame[1];
@@ -676,11 +646,10 @@ static mcnt_t mu_bfn_strip(mu_t *frame) {
     mu_t s   = frame[0];
     mu_t dir = frame[1];
     mu_t pad = frame[2] ? frame[2] : MU_SPACE_STR;
-    if (!mu_isstr(s) ||
-        (dir && !mu_isnum(dir)) ||
-        (!mu_isstr(pad) || mu_str_getlen(pad) == 0)) {
-        mu_error_arg(MU_KEY_STR, 0x3, frame);
-    }
+    mu_checkargs(
+            mu_isstr(s) && (!dir || mu_isnum(dir)) &&
+            mu_isstr(pad) && mu_str_getlen(pad) > 0,
+            MU_STR_KEY, 0x3, frame);
 
     const mbyte_t *pos = mu_str_getdata(s);
     const mbyte_t *end = pos + mu_str_getlen(s);
@@ -701,10 +670,10 @@ static mcnt_t mu_bfn_strip(mu_t *frame) {
     }
 
     frame[0] = mu_str_fromdata(pos, end-pos);
-    mu_str_dec(s);
-    mu_str_dec(pad);
+    mu_dec(s);
+    mu_dec(pad);
     return 1;
 }
 
-MU_GEN_STR(mu_gen_key_strip, "strip")
-MU_GEN_BFN(mu_gen_strip, 0x3, mu_bfn_strip)
+MU_DEF_STR(mu_strip_key_def, "strip")
+MU_DEF_BFN(mu_strip_def, 0x3, mu_strip_bfn)

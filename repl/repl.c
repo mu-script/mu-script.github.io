@@ -2,11 +2,6 @@
  * simple Mu repl for embedded with emscripten
  */
 #include "mu/mu.h"
-#include "mu/tbl.h"
-#include "mu/fn.h"
-#include "mu/vm.h"
-#include "mu/str.h"
-#include "mu/num.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <emscripten.h>
@@ -22,6 +17,7 @@ void mu_sys_error(const char *message, muint_t len) {
     EM_ASM_({
         throw 'error: ' + Pointer_stringify($0, $1);
     }, message, len);
+    mu_unreachable;
 }
 
 // import hooks
@@ -41,13 +37,13 @@ static mcnt_t mu_bfn_dis(mu_t *frame) {
     return 0;
 }
 
-MU_GEN_STR(mu_sys_key_dis, "dis")
-MU_GEN_BFN(mu_sys_bfn_dis, 0x1, mu_bfn_dis)
-MU_GEN_TBL(mu_sys_tbl_dis, {
+MU_DEF_STR(mu_sys_key_dis, "dis")
+MU_DEF_BFN(mu_sys_bfn_dis, 0x1, mu_bfn_dis)
+MU_DEF_TBL(mu_sys_tbl_dis, {
     { mu_sys_key_dis, mu_sys_bfn_dis }
 })
 
-MU_GEN_TBL(mu_sys_imports, {
+MU_DEF_TBL(mu_sys_imports, {
     { mu_sys_key_dis, mu_sys_tbl_dis }
 })
 
