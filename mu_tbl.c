@@ -1,28 +1,37 @@
-#include "tbl.h"
-
-#include "num.h"
-#include "str.h"
-#include "fn.h"
-#include "parse.h"
+/*
+ * Mu tbls, key-value lookup tables
+ *
+ * Copyright (c) 2016 Christopher Haster
+ * Distributed under the MIT license in mu.h
+ */
+#include "mu_tbl.h"
+#include "mu.h"
 
 
 // Table access
 mu_inline struct mtbl *mtbl(mu_t t) {
-    return (struct mtbl *)((muint_t)t - MTTBL);
+    return (struct mtbl *)((muint_t)t & ~7);
+}
+
+mu_inline bool mu_isrtbl(mu_t t) {
+    return (MTTBL^MTRTBL) & (muint_t)t;
 }
 
 
 // General purpose hash for mu types
-mu_inline muint_t mu_tbl_hash(mu_t m) {
-    // Mu garuntees bitwise equality for Mu types, which has the very
-    // nice property of being a free hash function.
+mu_inline muint_t mu_tbl_hash(mu_t t, mu_t m) {
+    // Mu types have bitwise equality but aren't distributed very well.
     //
-    // We remove the lower 3 bits, since they store the type, which
-    // generally doesn't vary in tables. And we xor the upper and lower
-    // halves so all bits can affect the range of the length type.
-    // This is the boundary on the table size so it's really the only
-    // part that matters.
-    return ((muint_t)m >> (8*sizeof(mlen_t))) ^ ((muint_t)m >> 3);
+    // We can kinda fix this with Knuth's multiplicitive hash
+    // (2^32 / golden ratio), but multiplication only propogates entropy
+    // upwards, and later masking will lose most of the integer's variation.
+    // So instead of masking, we just shift the integer downwards, keeping the
+    // most impacted bits.
+#ifdef MU64
+    return ((muint_t)m * 11400714819323198485UL) >> (64 - mtbl(t)->npw2);
+#else
+    return ((muint_t)m * 2654435761UL) >> (32 - mtbl(t)->npw2);
+#endif
 }
 
 // Find smallest integer size for table length
@@ -112,8 +121,8 @@ static void mu_tbl_setpair(mu_t t, muint_t i, mu_t *p) {
 
 // Functions for managing tables
 mu_t mu_tbl_create(muint_t len) {
-    struct mtbl *t = mu_ref_alloc(sizeof(struct mtbl));
-
+    struct mtbl *t = mu_alloc(sizeof(struct mtbl));
+    t->ref = 1;
     t->npw2 = mu_tbl_listnpw2(len);
     t->isize = 0;
     t->len = 0;
@@ -127,15 +136,22 @@ mu_t mu_tbl_create(muint_t len) {
     return (mu_t)((muint_t)t + MTTBL);
 }
 
-mu_t mu_tbl_extend(muint_t len, mu_t tail) {
-    mu_assert(!tail || mu_istbl(tail));
+mu_t mu_tbl_createtail(muint_t len, mu_t tail) {
     mu_t t = mu_tbl_create(len);
-    mtbl(t)->tail = tail;
+    mu_tbl_settail(t, tail);
     return t;
 }
 
 void mu_tbl_settail(mu_t t, mu_t tail) {
-    mu_assert(!tail || mu_istbl(tail));
+    mu_assert(!tail || mu_istbl(tail) || mu_isbuf(tail));
+    mu_checkconst(!mu_isrtbl(t), "table");
+
+    if (mu_isbuf(tail)) {
+        mu_t b = tail;
+        tail = mu_buf_gettail(b);
+        mu_dec(b);
+    }
+
     mtbl(t)->tail = tail;
 }
 
@@ -149,7 +165,7 @@ void mu_tbl_destroy(mu_t t) {
 
     mu_dealloc(mtbl(t)->array, size*sizeof(mu_t));
     mu_dec(mtbl(t)->tail);
-    mu_ref_dealloc(t, sizeof(struct mtbl));
+    mu_dealloc(mtbl(t), sizeof(struct mtbl));
 }
 
 
@@ -171,7 +187,7 @@ mu_t mu_tbl_lookup(mu_t t, mu_t k) {
                 return mu_inc(mtbl(t)->array[i]);
             }
         } else {
-            for (muint_t i = mu_tbl_hash(k);; i++) {
+            for (muint_t i = mu_tbl_hash(t, k);; i++) {
                 mu_t *p = mu_tbl_getpair(t, i & mask);
 
                 if (p && p[0] == k) {
@@ -231,6 +247,7 @@ static void mu_tbl_pairsexpand(mu_t t, mlen_t len) {
 // without decending down the tail chain
 void mu_tbl_insert(mu_t t, mu_t k, mu_t v) {
     mu_assert(mu_istbl(t));
+    mu_checkconst(!mu_isrtbl(t), "table");
     if (!k) {
         mu_dec(v);
         return;
@@ -254,9 +271,7 @@ void mu_tbl_insert(mu_t t, mu_t k, mu_t v) {
             // nothing to remove
             return;
         } else {
-            if ((muint_t)mtbl(t)->len + 1 > (mlen_t)-1) {
-                mu_errorf("exceeded max length in table");
-            }
+            mu_checklen((muint_t)mtbl(t)->len + 1 <= (mlen_t)-1, "table");
 
             if (!(k == mu_num_fromuint(i) && i >= mu_tbl_count(t))) {
                 muint_t i = mu_num_getuint(k) & (2*mask+1);
@@ -276,11 +291,13 @@ void mu_tbl_insert(mu_t t, mu_t k, mu_t v) {
             // new value fits
             mtbl(t)->array[i] = v;
             mtbl(t)->len += 1;
+            memset(&mtbl(t)->array[mtbl(t)->len-1], 0,
+                    (i - (mtbl(t)->len-1))*sizeof(mu_t));
             mtbl(t)->nils += i - (mtbl(t)->len-1);
             return;
         }
     } else {
-        for (muint_t i = mu_tbl_hash(k);; i++) {
+        for (muint_t i = mu_tbl_hash(t, k);; i++) {
             mu_t *p = mu_tbl_getpair(t, i & mask);
 
             if (p && p[0] == k) {
@@ -296,9 +313,7 @@ void mu_tbl_insert(mu_t t, mu_t k, mu_t v) {
                 // nothing to remove
                 return;
             } else if (!p) {
-                if ((muint_t)mtbl(t)->len + 1 > (mlen_t)-1) {
-                    mu_errorf("exceeded max length in table");
-                }
+                mu_checklen((muint_t)mtbl(t)->len + 1 <= (mlen_t)-1, "table");
 
                 muint_t j = mu_tbl_off(t) + mu_tbl_count(t);
                 if (j >= mu_tbl_size(t)) {
@@ -322,12 +337,14 @@ void mu_tbl_insert(mu_t t, mu_t k, mu_t v) {
 // decends down the tail chain until its found
 void mu_tbl_assign(mu_t head, mu_t k, mu_t v) {
     mu_assert(mu_istbl(head));
+    bool ro = false;
     if (!k) {
         mu_dec(k);
         return;
     }
 
     for (mu_t t = head; t; t = mtbl(t)->tail) {
+        ro = ro || mu_isrtbl(t);
         muint_t mask = (1 << mtbl(t)->npw2) - 1;
 
         if (mu_tbl_islist(t)) {
@@ -335,6 +352,8 @@ void mu_tbl_assign(mu_t head, mu_t k, mu_t v) {
 
             if (k == mu_num_fromuint(i) &&
                     i < mu_tbl_count(t) && mtbl(t)->array[i]) {
+                mu_checkconst(!ro, "table");
+
                 // replace old value
                 mu_t oldv = mtbl(t)->array[i];
                 mtbl(t)->array[i] = v;
@@ -344,10 +363,12 @@ void mu_tbl_assign(mu_t head, mu_t k, mu_t v) {
                 return;
             }
         } else {
-            for (muint_t i = mu_tbl_hash(k);; i++) {
+            for (muint_t i = mu_tbl_hash(t, k);; i++) {
                 mu_t *p = mu_tbl_getpair(t, i & mask);
 
                 if (p && p[0] == k && p[1]) {
+                    mu_checkconst(!ro, "table");
+
                     // replace old value
                     mu_t oldv = p[1];
                     p[1] = v;
@@ -407,7 +428,7 @@ static mcnt_t mu_tbl_iter_step(mu_t scope, mu_t *frame) {
     muint_t i = mu_num_getuint(mu_tbl_lookup(scope, mu_num_fromuint(1)));
 
     bool next = mu_tbl_next(t, &i, 0, &frame[0]);
-    mu_tbl_dec(t);
+    mu_dec(t);
     mu_tbl_insert(scope, mu_num_fromuint(1), mu_num_fromuint(i));
     return next ? 1 : 0;
 }
@@ -415,7 +436,7 @@ static mcnt_t mu_tbl_iter_step(mu_t scope, mu_t *frame) {
 mu_t mu_tbl_iter(mu_t t) {
     mu_assert(mu_istbl(t));
     return mu_fn_fromsbfn(0x0, mu_tbl_iter_step,
-            mu_tbl_fromlist((mu_t[]){t, mu_num_fromuint(0)}, 2));
+            mu_tbl_fromlist((mu_t[]){mu_inc(t), mu_num_fromuint(0)}, 2));
 }
 
 static mcnt_t mu_tbl_pairs_step(mu_t scope, mu_t *frame) {
@@ -423,7 +444,7 @@ static mcnt_t mu_tbl_pairs_step(mu_t scope, mu_t *frame) {
     muint_t i = mu_num_getuint(mu_tbl_lookup(scope, mu_num_fromuint(1)));
 
     bool next = mu_tbl_next(t, &i, &frame[0], &frame[1]);
-    mu_tbl_dec(t);
+    mu_dec(t);
     mu_tbl_insert(scope, mu_num_fromuint(1), mu_num_fromuint(i));
     return next ? 2 : 0;
 }
@@ -431,31 +452,35 @@ static mcnt_t mu_tbl_pairs_step(mu_t scope, mu_t *frame) {
 mu_t mu_tbl_pairs(mu_t t) {
     mu_assert(mu_istbl(t));
     return mu_fn_fromsbfn(0x0, mu_tbl_pairs_step,
-        mu_tbl_fromlist((mu_t[]){t, mu_num_fromuint(0)}, 2));
+        mu_tbl_fromlist((mu_t[]){mu_inc(t), mu_num_fromuint(0)}, 2));
 }
 
 
 // Table creating functions
-mu_t mu_tbl_initlist(struct mtbl *t, mu_t (*const *gen)(void), muint_t n) {
+mu_t mu_tbl_initlist(struct mtbl *t, mu_t (*const *def)(void), muint_t n) {
     mu_t m = (mu_t)((muint_t)t + MTTBL);
-    mu_tbl_listexpand(m, n);
+    //mu_tbl_listexpand(m, n);
 
     for (muint_t i = 0; i < n; i++) {
-        mu_tbl_insert(m, mu_num_fromuint(i), gen[i]());
+        mu_tbl_insert(m, mu_num_fromuint(i), def[i]());
     }
 
-    return m;
+    return (mu_t)((muint_t)t + MTRTBL);
 }
 
-mu_t mu_tbl_initpairs(struct mtbl *t, mu_t (*const (*gen)[2])(void), muint_t n) {
+mu_t mu_tbl_initpairs(struct mtbl *t, mu_t (*tail)(void),
+            mu_t (*const (*def)[2])(void), muint_t n) {
     mu_t m = (mu_t)((muint_t)t + MTTBL);
-    mu_tbl_listexpand(m, n);
-
-    for (muint_t i = 0; i < n; i++) {
-        mu_tbl_insert(m, gen[i][0](), gen[i][1]());
+    //mu_tbl_pairsexpand(m, n);
+    if (tail) {
+        mu_tbl_settail(m, tail());
     }
 
-    return m;
+    for (muint_t i = 0; i < n; i++) {
+        mu_tbl_insert(m, def[i][0](), def[i][1]());
+    }
+
+    return (mu_t)((muint_t)t + MTRTBL);
 }
 
 mu_t mu_tbl_fromlist(mu_t *list, muint_t n) {
@@ -478,7 +503,7 @@ mu_t mu_tbl_frompairs(mu_t (*pairs)[2], muint_t n) {
     return t;
 }
 
-mu_t mu_tbl_fromiter(mu_t i) {
+static mu_t mu_tbl_fromiter(mu_t i) {
     mu_t frame[MU_FRAME];
     mu_t t = mu_tbl_create(0);
     muint_t index = 0;
@@ -491,20 +516,43 @@ mu_t mu_tbl_fromiter(mu_t i) {
         }
     }
 
-    mu_fn_dec(i);
+    mu_dec(i);
     return t;
+}
+
+mu_t mu_tbl_frommu(mu_t m) {
+    switch (mu_gettype(m)) {
+        case MTNIL:
+            return mu_tbl_create(0);
+
+        case MTNUM:
+            return mu_tbl_create(mu_num_getuint(m));
+
+        case MTSTR:
+            return mu_tbl_fromiter(mu_fn_call(MU_ITER, 0x11, m));
+
+        case MTTBL:
+        case MTRTBL:
+            return mu_tbl_fromiter(mu_fn_call(MU_PAIRS, 0x11, m));
+
+        case MTFN:
+            return mu_tbl_fromiter(m);
+
+        default:
+            mu_dec(m);
+            return 0;
+    }
 }
 
 // Table operations
 void mu_tbl_push(mu_t t, mu_t p, mint_t i) {
     mu_assert(mu_istbl(t));
+    mu_checkconst(!mu_isrtbl(t), "table");
     i = (i >= 0) ? i : i + mtbl(t)->len;
     i = (i > mtbl(t)->len) ? mtbl(t)->len : (i < 0) ? 0 : i;
 
     if (mu_tbl_count(t) + 1 >= mu_tbl_size(t)) {
-        if ((muint_t)mtbl(t)->len + 1 > (mlen_t)-1) {
-            mu_errorf("exceeded max length in table");
-        }
+        mu_checklen((muint_t)mtbl(t)->len + 1 <= (mlen_t)-1, "table");
 
         if (mu_tbl_islist(t)) {
             mu_tbl_listexpand(t, i+1);
@@ -551,6 +599,7 @@ void mu_tbl_push(mu_t t, mu_t p, mint_t i) {
 
 mu_t mu_tbl_pop(mu_t t, mint_t i) {
     mu_assert(mu_istbl(t));
+    mu_checkconst(!mu_isrtbl(t), "table");
     i = (i >= 0) ? i : i + mtbl(t)->len;
     i = (i > mtbl(t)->len) ? mtbl(t)->len : (i < 0) ? 0 : i;
 
@@ -617,8 +666,7 @@ mu_t mu_tbl_concat(mu_t a, mu_t b, mu_t offset) {
         }
     }
 
-    mu_tbl_dec(a);
-    mu_tbl_dec(b);
+    mu_dec(b);
     return d;
 }
 
@@ -657,7 +705,6 @@ mu_t mu_tbl_subset(mu_t t, mint_t lower, mint_t upper) {
         mu_tbl_insert(d, k, v);
     }
 
-    mu_dec(t);
     return d;
 }
 
@@ -680,8 +727,7 @@ mu_t mu_tbl_and(mu_t a, mu_t b) {
         }
     }
 
-    mu_tbl_dec(a);
-    mu_tbl_dec(b);
+    mu_dec(b);
     return d;
 }
 
@@ -698,8 +744,7 @@ mu_t mu_tbl_or(mu_t a, mu_t b) {
         mu_tbl_insert(d, k, v);
     }
 
-    mu_tbl_dec(a);
-    mu_tbl_dec(b);
+    mu_dec(b);
     return d;
 }
 
@@ -732,8 +777,7 @@ mu_t mu_tbl_xor(mu_t a, mu_t b) {
         }
     }
 
-    mu_tbl_dec(a);
-    mu_tbl_dec(b);
+    mu_dec(b);
     return d;
 }
 
@@ -753,24 +797,36 @@ mu_t mu_tbl_diff(mu_t a, mu_t b) {
         }
     }
 
-    mu_tbl_dec(a);
-    mu_tbl_dec(b);
+    mu_dec(b);
     return d;
 }
 
 
 // String representation
-mu_t mu_tbl_parse(const mbyte_t **ppos, const mbyte_t *end) {
+mu_t mu_tbl_parsen(const mbyte_t **ppos, const mbyte_t *end) {
     const mbyte_t *pos = *ppos;
     mu_t t = mu_tbl_create(0);
     mu_t i = mu_num_fromuint(0);
 
+    if (*pos++ != '[') {
+        return 0;
+    }
+
     while (pos < end && *pos != ']') {
-        mu_t k = mu_nparse(&pos, end);
+        mu_t k = mu_parsen(&pos, end);
+        if (!k) {
+            mu_dec(t);
+            return 0;
+        }
 
         if (pos < end && *pos == ':') {
             pos++;
-            mu_t v = mu_nparse(&pos, end);
+            mu_t v = mu_parsen(&pos, end);
+            if (!v) {
+                mu_dec(k);
+                mu_dec(t);
+                return 0;
+            }
             mu_tbl_insert(t, k, v);
         } else {
             mu_tbl_insert(t, i, k);
@@ -785,16 +841,32 @@ mu_t mu_tbl_parse(const mbyte_t **ppos, const mbyte_t *end) {
     }
 
     if (pos == end || *pos++ != ']') {
-        mu_errorf("unterminated table literal");
+        // unterminated table
+        mu_dec(t);
+        return 0;
     }
 
     *ppos = pos;
     return t;
 }
 
-static void mu_tbl_dump_nested(mu_t t, mu_t *s, muint_t *n, mu_t depth) {
+mu_t mu_tbl_parse(const char *s, muint_t n) {
+    const mbyte_t *pos = (const mbyte_t *)s;
+    const mbyte_t *end = (const mbyte_t *)pos + n;
+
+    mu_t t = mu_tbl_parsen(&pos, end);
+
+    if (pos != end) {
+        mu_dec(t);
+        return 0;
+    }
+
+    return t;
+}
+
+static void mu_tbl_repr_nested(mu_t t, mu_t *s, muint_t *n, mu_t depth) {
     if (mu_num_cmp(depth, mu_num_fromuint(0)) <= 0) {
-        mu_buf_format(s, n, "%nr", t, 0);
+        mu_buf_pushf(s, n, "%nr", t, 0);
         return;
     }
 
@@ -805,21 +877,22 @@ static void mu_tbl_dump_nested(mu_t t, mu_t *s, muint_t *n, mu_t depth) {
         }
     }
 
-    mu_buf_push(s, n, '[');
+    mu_buf_pushchr(s, n, '[');
 
     mu_t k, v;
     for (muint_t i = 0; mu_tbl_next(t, &i, &k, &v);) {
         if (!linear) {
-            mu_buf_format(s, n, "%nr: ", k, 0);
+            mu_buf_pushf(s, n, "%nr: ", k, 0);
         } else {
             mu_dec(k);
         }
 
         if (mu_istbl(v)) {
-            mu_tbl_dump_nested(v, s, n, mu_num_sub(depth, mu_num_fromuint(1)));
-            mu_buf_format(s, n, ", ");
+            mu_tbl_repr_nested(v, s, n, mu_num_sub(depth, mu_num_fromuint(1)));
+            mu_dec(v);
+            mu_buf_pushf(s, n, ", ");
         } else {
-            mu_buf_format(s, n, "%r, ", v);
+            mu_buf_pushf(s, n, "%r, ", v);
         }
     }
 
@@ -827,78 +900,46 @@ static void mu_tbl_dump_nested(mu_t t, mu_t *s, muint_t *n, mu_t depth) {
         *n -= 2;
     }
 
-    mu_buf_push(s, n, ']');
-    mu_tbl_dec(t);
+    mu_buf_pushchr(s, n, ']');
 }
 
-mu_t mu_tbl_dump(mu_t t, mu_t depth) {
+mu_t mu_tbl_repr(mu_t t, mu_t depth) {
     mu_assert(mu_istbl(t) && (!depth || mu_isnum(depth)));
-
     if (!depth) {
         depth = mu_num_fromuint(1);
+    } else if (depth == mu_num_fromuint(0)) {
+        return mu_str_format("<tbl 0x%wx>", (muint_t)t & ~7);
     }
 
     mu_t s = mu_buf_create(0);
     muint_t n = 0;
 
-    mu_tbl_dump_nested(t, &s, &n, depth);
+    mu_tbl_repr_nested(t, &s, &n, depth);
 
     return mu_str_intern(s, n);
 }
 
 
 // Table related Mu functions
-static mcnt_t mu_bfn_tbl(mu_t *frame) {
-    mu_t m    = frame[0];
+static mcnt_t mu_tbl_bfn(mu_t *frame) {
     mu_t tail = frame[1];
-    if (tail && !mu_istbl(tail)) {
-        mu_error_arg(MU_KEY_TBL, 0x2, frame);
+    mu_checkargs(!tail || mu_istbl(tail) || mu_isbuf(tail),
+            MU_TBL_KEY, 0x2, frame);
+
+    mu_t m = mu_tbl_frommu(mu_inc(frame[0]));
+    mu_checkargs(m, MU_TBL_KEY, 0x2, frame);
+    mu_dec(frame[0]);
+    frame[0] = m;
+
+    if (mu_istbl(tail)) {
+        mu_tbl_settail(frame[0], tail);
+    } else {
+        mu_tbl_settail(frame[0], mu_buf_gettail(tail));
+        mu_dec(tail);
     }
 
-    switch (mu_gettype(m)) {
-        case MTNIL:
-            frame[0] = mu_tbl_create(0);
-            break;
-
-        case MTNUM:
-            frame[0] = mu_tbl_create(mu_num_getuint(m));
-            break;
-
-        case MTSTR:
-            frame[0] = m;
-            mu_fn_fcall(MU_ITER, 0x11, frame);
-            frame[0] = mu_tbl_fromiter(frame[0]);
-            break;
-
-        case MTTBL:
-            frame[0] = m;
-            mu_fn_fcall(MU_PAIRS, 0x11, frame);
-            frame[0] = mu_tbl_fromiter(frame[0]);
-            break;
-
-        case MTFN:
-            frame[0] = mu_tbl_fromiter(m);
-            break;
-
-        default:
-            mu_error_cast(MU_KEY_TBL, m);
-    }
-
-    mu_tbl_settail(frame[0], tail);
     return 1;
 }
 
-MU_GEN_STR(mu_gen_key_tbl, "tbl")
-MU_GEN_BFN(mu_gen_tbl, 0x2, mu_bfn_tbl)
-
-static mcnt_t mu_bfn_tail(mu_t *frame) {
-    if (!mu_istbl(frame[0])) {
-        mu_error_arg(MU_KEY_TAIL, 0x1, frame);
-    }
-
-    frame[0] = mu_tbl_gettail(frame[0]);
-    return 1;
-}
-
-MU_GEN_STR(mu_gen_key_tail, "tail")
-MU_GEN_BFN(mu_gen_tail, 0x1, mu_bfn_tail)
+MU_DEF_STR(mu_tbl_key_def, "tbl")
+MU_DEF_BFN(mu_tbl_def, 0x2, mu_tbl_bfn)
